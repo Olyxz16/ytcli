@@ -33,9 +33,32 @@ func NewServiceWithClient(client *api.Client) *Service {
 	return &Service{client: client}
 }
 
+const pageSize = 50
+
 // ListIssues lists issues matching the query.
+// If top is 0, all matching issues are fetched (auto-pagination).
 func (s *Service) ListIssues(ctx context.Context, query string, top, skip int) ([]model.Issue, error) {
-	return s.client.ListIssues(ctx, query, top, skip, nil)
+	if top > 0 {
+		return s.client.ListIssues(ctx, query, top, skip, nil)
+	}
+
+	// Auto-pagination
+	var all []model.Issue
+	for {
+		page, err := s.client.ListIssues(ctx, query, pageSize, skip, nil)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		all = append(all, page...)
+		if len(page) < pageSize {
+			break
+		}
+		skip += pageSize
+	}
+	return all, nil
 }
 
 // GetIssue retrieves an issue by ID.
@@ -51,6 +74,24 @@ func (s *Service) CreateIssue(ctx context.Context, issue model.Issue) (*model.Is
 	if issue.Summary == "" {
 		return nil, fmt.Errorf("summary is required")
 	}
+
+	// Resolve project short name to ID if needed
+	if issue.Project.ID == "" && issue.Project.ShortName != "" {
+		projects, err := s.client.ListProjects(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve project: %w", err)
+		}
+		for _, p := range projects {
+			if p.ShortName == issue.Project.ShortName || p.Name == issue.Project.ShortName {
+				issue.Project.ID = p.ID
+				break
+			}
+		}
+		if issue.Project.ID == "" {
+			return nil, fmt.Errorf("project %q not found", issue.Project.ShortName)
+		}
+	}
+
 	return s.client.CreateIssue(ctx, issue)
 }
 

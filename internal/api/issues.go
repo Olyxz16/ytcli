@@ -62,7 +62,7 @@ func (c *Client) CreateIssue(ctx context.Context, issue model.Issue) (*model.Iss
 		payload["description"] = issue.Description
 	}
 	if len(issue.CustomFields) > 0 {
-		payload["customFields"] = issue.CustomFields
+		payload["customFields"] = marshalCustomFields(issue.CustomFields)
 	}
 	if len(issue.Tags) > 0 {
 		payload["tags"] = issue.Tags

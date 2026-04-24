@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/Olyxz16/ytcli/internal/model"
 )
@@ -144,7 +145,12 @@ func issueDetailText(issue *model.Issue) error {
 	if issue.Description != "" {
 		fmt.Println()
 		fmt.Println(headerStyle.Render("Description"))
-		fmt.Println(issue.Description)
+		rendered, err := RenderMarkdown(issue.Description)
+		if err == nil {
+			fmt.Println(rendered)
+		} else {
+			fmt.Println(issue.Description)
+		}
 	}
 
 	if len(issue.Comments) > 0 {
@@ -260,4 +266,16 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max-3] + "..."
+}
+
+// RenderMarkdown renders markdown text to terminal-friendly output.
+func RenderMarkdown(text string) (string, error) {
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(120),
+	)
+	if err != nil {
+		return "", err
+	}
+	return r.Render(text)
 }

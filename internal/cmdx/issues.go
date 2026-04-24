@@ -19,7 +19,7 @@ var (
 var issuesCmd = &cobra.Command{
 	Use:     "issues [query]",
 	Short:   "List issues",
-	Aliases: []string{"i"},
+	Aliases: []string{"i", "search"},
 	Args:    cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		svc, merged, err := buildService()
@@ -77,9 +77,18 @@ var showCmd = &cobra.Command{
 	Aliases: []string{"s"},
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		svc, _, err := buildService()
+		svc, merged, err := buildService()
 		if err != nil {
 			handleError(err)
+		}
+
+		openWeb, _ := cmd.Flags().GetBool("web")
+		if openWeb {
+			url := fmt.Sprintf("%s/issue/%s", merged.InstanceURL, args[0])
+			if err := openBrowser(url); err != nil {
+				handleError(err)
+			}
+			return
 		}
 
 		withComments, _ := cmd.Flags().GetBool("comments")

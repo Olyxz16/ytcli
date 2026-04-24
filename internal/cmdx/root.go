@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/Olyxz16/ytcli/internal/api"
 	"github.com/Olyxz16/ytcli/internal/config"
 	"github.com/Olyxz16/ytcli/internal/render"
 	"github.com/Olyxz16/ytcli/internal/service"
@@ -100,8 +101,17 @@ func buildService() (*service.Service, *config.MergedConfig, error) {
 	return svc, merged, nil
 }
 
-// handleError prints an error in the appropriate format and exits.
+// handleError prints an error in the appropriate format and exits with a meaningful code.
 func handleError(err error) {
 	render.Error(err, getOutputMode())
-	os.Exit(1)
+	code := 1
+	switch {
+	case api.IsAuthError(err):
+		code = 2
+	case api.IsNotFoundError(err):
+		code = 3
+	case api.IsValidationError(err):
+		code = 4
+	}
+	os.Exit(code)
 }

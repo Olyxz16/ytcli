@@ -172,3 +172,18 @@ func (s *Service) ListWorkItems(ctx context.Context, issueID string) ([]model.Wo
 func (s *Service) AddWorkItem(ctx context.Context, issueID string, item model.WorkItem) (*model.WorkItem, error) {
 	return s.client.AddWorkItem(ctx, issueID, item)
 }
+
+// ListTags returns all tags.
+func (s *Service) ListTags(ctx context.Context) ([]model.Tag, error) {
+	return s.client.ListTags(ctx)
+}
+
+// AddTagToIssue adds a tag to an issue.
+func (s *Service) AddTagToIssue(ctx context.Context, issueID string, tag model.Tag) error {
+	return s.client.AddTagToIssue(ctx, issueID, tag)
+}
+
+// RemoveTagFromIssue removes a tag from an issue.
+func (s *Service) RemoveTagFromIssue(ctx context.Context, issueID, tagID string) error {
+	return s.client.RemoveTagFromIssue(ctx, issueID, tagID)
+}

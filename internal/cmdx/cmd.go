@@ -2,6 +2,7 @@ package cmdx
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/Olyxz16/ytcli/internal/render"
@@ -24,10 +25,7 @@ var cmdCmd = &cobra.Command{
 		}
 
 		issueID := args[0]
-		command := args[1]
-		if len(args) > 2 {
-			command = fmt.Sprintf("%s %s", args[1], args[2])
-		}
+		command := strings.Join(args[1:], " ")
 
 		result, err := svc.ExecuteCommand(cmd.Context(), command, []string{issueID}, cmdSilentFlag)
 		if err != nil {

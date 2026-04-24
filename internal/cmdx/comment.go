@@ -2,6 +2,7 @@ package cmdx
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/Olyxz16/ytcli/internal/model"
@@ -19,12 +20,7 @@ var commentCmd = &cobra.Command{
 		}
 
 		issueID := args[0]
-		text := args[1]
-		if len(args) > 2 {
-			for i := 2; i < len(args); i++ {
-				text += " " + args[i]
-			}
-		}
+		text := strings.Join(args[1:], " ")
 
 		comment, err := svc.AddComment(cmd.Context(), issueID, text)
 		if err != nil {

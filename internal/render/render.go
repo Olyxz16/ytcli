@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/Olyxz16/ytcli/internal/model"
+	"github.com/Olyxz16/ytcli/internal/store"
 )
 
 var (
@@ -240,6 +241,150 @@ func WorkItemList(items []model.WorkItem, mode OutputMode) error {
 		}
 		return nil
 	}
+}
+
+// LocalIssueList renders a list of local issues.
+func LocalIssueList(issues []store.LocalIssue, mode OutputMode) error {
+	switch mode {
+	case OutputJSON:
+		return JSON(issues)
+	default:
+		return localIssueListTable(issues)
+	}
+}
+
+func localIssueListTable(issues []store.LocalIssue) error {
+	if len(issues) == 0 {
+		fmt.Println("No issues found.")
+		return nil
+	}
+
+	maxID := 10
+	maxSummary := 30
+	for _, i := range issues {
+		displayID := fmt.Sprintf("#%d", i.ID)
+		if i.RemoteID != nil {
+			displayID = *i.RemoteID
+		}
+		if len(displayID) > maxID {
+			maxID = len(displayID)
+		}
+		if len(i.Summary) > maxSummary {
+			maxSummary = len(i.Summary)
+		}
+	}
+
+	fmt.Println(headerStyle.Render(fmt.Sprintf(
+		"%-*s  %-*s  %-6s  %s",
+		maxID, "ID",
+		maxSummary, "Summary",
+		"State",
+		"Sync",
+	)))
+
+	for _, i := range issues {
+		displayID := fmt.Sprintf("#%d", i.ID)
+		if i.RemoteID != nil {
+			displayID = *i.RemoteID
+		}
+
+		stateCol := unresolvedStyle
+		if i.State == "Done" || i.State == "Closed" || i.State == "Resolved" {
+			stateCol = resolvedStyle
+		}
+
+		syncIndicator := ""
+		switch i.SyncStatus {
+		case "local":
+			syncIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Render("local")
+		case "modified":
+			syncIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render("modified")
+		case "synced":
+			syncIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color("82")).Render("synced")
+		case "conflict":
+			syncIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("CONFLICT")
+		}
+
+		fmt.Printf(
+			"%s  %s  %s  %s\n",
+			idStyle.Render(fmt.Sprintf("%-*s", maxID, displayID)),
+			truncate(i.Summary, maxSummary),
+			stateCol.Render(fmt.Sprintf("%-6s", i.State)),
+			syncIndicator,
+		)
+	}
+	return nil
+}
+
+// LocalIssueDetail renders a single local issue in detail.
+func LocalIssueDetail(issue *store.LocalIssue, mode OutputMode) error {
+	switch mode {
+	case OutputJSON:
+		return JSON(issue)
+	default:
+		return localIssueDetailText(issue)
+	}
+}
+
+func localIssueDetailText(issue *store.LocalIssue) error {
+	displayID := fmt.Sprintf("#%d", issue.ID)
+	if issue.RemoteID != nil {
+		displayID = *issue.RemoteID
+	}
+	fmt.Println(titleStyle.Render(displayID + ": " + issue.Summary))
+	fmt.Println()
+
+	fmt.Printf("%s %s\n", labelStyle.Render("State:"), issue.State)
+	fmt.Printf("%s %s\n", labelStyle.Render("Priority:"), issue.Priority)
+	if issue.Assignee != nil {
+		fmt.Printf("%s %s\n", labelStyle.Render("Assignee:"), *issue.Assignee)
+	}
+	fmt.Printf("%s %s\n", labelStyle.Render("Created:"), issue.CreatedAt.Format("2006-01-02 15:04"))
+	fmt.Printf("%s %s\n", labelStyle.Render("Updated:"), issue.UpdatedAt.Format("2006-01-02 15:04"))
+	fmt.Printf("%s %s\n", labelStyle.Render("Sync:"), issue.SyncStatus)
+
+	if len(issue.Tags) > 0 {
+		fmt.Printf("%s %s\n", labelStyle.Render("Tags:"), strings.Join(issue.Tags, ", "))
+	}
+	if issue.Comments > 0 {
+		fmt.Printf("%s %d\n", labelStyle.Render("Comments:"), issue.Comments)
+	}
+
+	if issue.Description != "" {
+		fmt.Println()
+		fmt.Println(headerStyle.Render("Description"))
+		rendered, err := RenderMarkdown(issue.Description)
+		if err == nil {
+			fmt.Println(rendered)
+		} else {
+			fmt.Println(issue.Description)
+		}
+	}
+
+	return nil
+}
+
+// LocalCommentList renders a list of local comments.
+func LocalCommentList(comments []store.LocalComment, mode OutputMode) error {
+	switch mode {
+	case OutputJSON:
+		return JSON(comments)
+	default:
+		for _, c := range comments {
+			fmt.Printf(
+				"%s %s\n  %s\n\n",
+				labelStyle.Render(c.Author),
+				labelStyle.Render(c.CreatedAt.Format("2006-01-02 15:04")),
+				c.Text,
+			)
+		}
+		return nil
+	}
+}
+
+// Header renders a section header.
+func Header(text string) string {
+	return headerStyle.Render(text)
 }
 
 // Error renders a structured error.

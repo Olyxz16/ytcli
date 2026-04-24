@@ -21,11 +21,21 @@ type GlobalConfig struct {
 	OutputFormat    string                    `yaml:"output_format"`
 }
 
+// LocalSchema defines states, priorities, and other schema for local issues.
+type LocalSchema struct {
+	States          []string `yaml:"states,omitempty"`
+	Priorities      []string `yaml:"priorities,omitempty"`
+	DefaultState    string   `yaml:"default_state,omitempty"`
+	DefaultPriority string   `yaml:"default_priority,omitempty"`
+	DoneStates      []string `yaml:"done_states,omitempty"`
+}
+
 // LocalConfig holds the commitable per-directory configuration.
 type LocalConfig struct {
-	Instance     string `yaml:"instance,omitempty"`
-	Project      string `yaml:"project,omitempty"`
-	DefaultQuery string `yaml:"default_query,omitempty"`
+	Instance     string      `yaml:"instance,omitempty"`
+	Project      string      `yaml:"project,omitempty"`
+	DefaultQuery string      `yaml:"default_query,omitempty"`
+	Local        LocalSchema `yaml:"local,omitempty"`
 }
 
 // LocalPrivateConfig holds the gitignored per-directory configuration.

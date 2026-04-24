@@ -2,10 +2,14 @@ package cmdx
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/Olyxz16/ytcli/internal/config"
+	"github.com/Olyxz16/ytcli/internal/local"
 	"github.com/Olyxz16/ytcli/internal/render"
+	"github.com/Olyxz16/ytcli/internal/store"
 )
 
 var (
@@ -77,12 +81,59 @@ var showCmd = &cobra.Command{
 	Aliases: []string{"s"},
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		svc, merged, err := buildService()
-		if err != nil {
-			handleError(err)
+		openWeb, _ := cmd.Flags().GetBool("web")
+		withComments, _ := cmd.Flags().GetBool("comments")
+
+		// Try local first if DB exists
+		if store.IsInitialized() {
+			db, err := store.Open()
+			if err == nil {
+				defer db.Close()
+				localCfg, _, _ := config.LoadLocal()
+				localID, err := local.ResolveID(db, args[0], localCfg)
+				if err == nil {
+					issue, err := store.GetIssue(db, localID)
+					if err == nil && issue != nil {
+						tags, _ := store.GetIssueTags(db, issue.ID)
+						issue.Tags = tags
+						issue.Comments, _ = store.CountComments(db, issue.ID)
+
+						if withComments {
+							comments, _ := store.ListComments(db, issue.ID)
+							// We can't easily embed comments in LocalIssue for rendering
+							// So render detail first, then comments separately
+							if quietFlag {
+								fmt.Println(local.FormatID(issue))
+								return
+							}
+							render.LocalIssueDetail(issue, getOutputMode())
+							if len(comments) > 0 {
+								fmt.Println()
+								render.Header("Comments")
+								render.LocalCommentList(comments, getOutputMode())
+							}
+							return
+						}
+
+						if quietFlag {
+							fmt.Println(local.FormatID(issue))
+							return
+						}
+						render.LocalIssueDetail(issue, getOutputMode())
+						return
+					}
+				}
+			}
 		}
 
-		openWeb, _ := cmd.Flags().GetBool("web")
+		// Fall back to remote API
+		svc, merged, err := buildService()
+		if err != nil {
+			// No remote configured either
+			fmt.Fprintf(os.Stderr, "Error: issue %q not found locally and no remote configured\n", args[0])
+			os.Exit(3)
+		}
+
 		if openWeb {
 			url := fmt.Sprintf("%s/issue/%s", merged.InstanceURL, args[0])
 			if err := openBrowser(url); err != nil {
@@ -91,7 +142,6 @@ var showCmd = &cobra.Command{
 			return
 		}
 
-		withComments, _ := cmd.Flags().GetBool("comments")
 		issue, err := svc.GetIssue(cmd.Context(), args[0], withComments)
 		if err != nil {
 			handleError(err)

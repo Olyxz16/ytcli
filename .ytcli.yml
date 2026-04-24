@@ -1,6 +1,17 @@
-# Committable local configuration for ytcli
-# This file can be safely committed to version control.
-
-# instance: work
-# project: PROJ
-# default_query: "#Unresolved assignee: me sort by: updated"
+local:
+    states:
+        - Open
+        - In Progress
+        - Review
+        - Done
+        - Closed
+    priorities:
+        - Critical
+        - Major
+        - Normal
+        - Minor
+    default_state: Open
+    default_priority: Normal
+    done_states:
+        - Done
+        - Closed

@@ -1,0 +1,6 @@
+# Committable local configuration for ytcli
+# This file can be safely committed to version control.
+
+# instance: work
+# project: PROJ
+# default_query: "#Unresolved assignee: me sort by: updated"

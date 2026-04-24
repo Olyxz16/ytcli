@@ -1,15 +1,17 @@
 # ytcli
 
-A fast, agent-friendly command-line interface for JetBrains YouTrack.
+A fast, agent-friendly, **offline-first** command-line interface for JetBrains YouTrack.
 
 ## Features
 
-- **Speed-first design**: Built in Go for instant startup and execution
-- **Agent-friendly**: Structured JSON output, meaningful exit codes, stdin support
-- **YouTrack Commands API**: Apply complex state changes with natural syntax
-- **Shell completions**: Bash, Zsh, Fish, PowerShell
-- **Interactive setup**: Guided configuration with Charm's `huh` forms
-- **TUI-ready architecture**: Service layer cleanly separated for future TUI
+- **Offline-first ticketing**: All daily operations hit a local SQLite database. Zero latency. Works on a plane.
+- **Sync on demand**: `ytcli sync` bridges your local tickets to YouTrack when you're ready to collaborate.
+- **Standalone mode**: No YouTrack account needed. Use ytcli as a local TODO tracker for small projects.
+- **Speed-first design**: Built in Go for instant startup and execution.
+- **Agent-friendly**: Structured JSON output, meaningful exit codes, stdin support.
+- **YouTrack Commands API**: Apply complex state changes with natural syntax.
+- **Shell completions**: Bash, Zsh, Fish, PowerShell.
+- **Interactive setup**: Guided configuration with Charm's `huh` forms.
 
 ## Installation
 
@@ -27,43 +29,81 @@ make build
 
 ## Quick Start
 
-### 1. Configure an instance
-
-Interactive setup:
+### Local-only mode (no YouTrack needed)
 
 ```bash
-ytcli config setup
-```
+# Initialize a local project
+ytcli init
 
-Or manual:
+# Add issues instantly — no network required
+ytcli add "Fix login bug" -d "OAuth token exchange fails" -P Critical
+ytcli add "Add dark mode" --tag ui
+ytcli add "Refactor API" --state "In Progress"
 
-```bash
-ytcli config set instances.work.url https://company.youtrack.cloud
-ytcli config set default_instance work
-ytcli auth login work --token <your-permanent-token>
-```
+# List all local issues
+ytcli list
+ytcli ls
 
-### 2. Use it
-
-```bash
-# List your unresolved issues
-ytcli issues "#Unresolved for: me"
+# Search locally with full-text search
+ytcli list "OAuth"
 
 # Show issue detail
-ytcli show PROJ-42
+ytcli show '#1'
 
-# Create an issue
-ytcli create PROJ -s "Bug found" -d "Details here" -P Critical
+# Edit, change state, mark done
+ytcli edit '#1' -s "Fix OAuth login bug"
+ytcli state '#1' "In Progress"
+ytcli done '#3'
 
-# Apply a command (the fast way)
+# Add comments
+ytcli comment '#1' "Investigating the flow"
+
+# Open in $EDITOR (unsynced) or browser (synced)
+ytcli open '#1'
+
+# Check sync status
+ytcli sync --status
+```
+
+### Connect to YouTrack for collaboration
+
+```bash
+# Configure a YouTrack instance
+ytcli config setup
+
+# Pull remote issues into local store
+ytcli sync --pull
+
+# Push local changes to YouTrack
+ytcli sync --push
+
+# Full bidirectional sync
+ytcli sync
+```
+
+### Direct YouTrack API commands (online)
+
+```bash
+# List remote issues
+ytcli issues "#Unresolved for: me"
+
+# Apply a command directly
 ytcli cmd PROJ-42 "State: In Progress for: me"
 
-# Add a comment
-ytcli comment PROJ-42 "Working on this now"
-
-# Open in browser
-ytcli open PROJ-42
+# Create directly on YouTrack
+ytcli create PROJ -s "Bug found" -d "Details here" -P Critical
 ```
+
+## How It Works
+
+ytcli uses a **local-first** architecture:
+
+1. **Local SQLite database** (`.ytcli/store.db`) is the primary data store
+2. All `add`, `list`, `show`, `edit`, `state`, `comment`, `tag` commands operate instantly on the local DB
+3. `ytcli sync` performs bidirectional sync with YouTrack:
+   - **Pull**: Fetch remote issues, update local copies
+   - **Push**: Send local creates/edits/comments to YouTrack
+4. Issues get hybrid IDs: `#1` locally, `PROJ-42` after sync. Both resolve to the same issue.
 
 ## Configuration
 
@@ -88,7 +128,18 @@ Tokens are stored in your OS keyring (fallback to `~/.config/ytcli/credentials.y
 ```yaml
 instance: work
 project: PROJ
-default_query: "#Unresolved assignee: me sort by: updated"
+local:
+  states:
+    - Open
+    - In Progress
+    - Review
+    - Done
+    - Closed
+  priorities:
+    - Critical
+    - Major
+    - Normal
+    - Minor
 ```
 
 **`.ytcli.local.yml`** (gitignored):
@@ -100,32 +151,60 @@ current_task: PROJ-42
 Initialize both with:
 
 ```bash
-ytcli config init
+ytcli init
 ```
 
 ## Commands
 
+### Local (offline-first)
+
+| Command | Description |
+|---|---|
+| `ytcli init` | Initialize local project with SQLite store |
+| `ytcli add "Summary"` | Create a local issue |
+| `ytcli list [query]` | List local issues (FTS5 search) |
+| `ytcli ls` | Alias for list |
+| `ytcli show <#id\|remote-id>` | Show issue detail (local first, remote fallback) |
+| `ytcli edit <id>` | Edit an issue |
+| `ytcli state <id> <state>` | Change issue state |
+| `ytcli done <id>` | Mark as done |
+| `ytcli comment <id> <text>` | Add comment |
+| `ytcli comments <id>` | List comments |
+| `ytcli open <id>` | Open in editor or browser |
+| `ytcli tag-add <id> <tag>` | Add tag |
+| `ytcli tag-remove <id> <tag>` | Remove tag |
+| `ytcli tags` | List tags |
+| `ytcli delete <id>` | Delete issue |
+| `ytcli sync` | Bidirectional sync with YouTrack |
+| `ytcli sync --status` | Show sync status |
+| `ytcli sync --pull` | Pull remote changes only |
+| `ytcli sync --push` | Push local changes only |
+
+### Remote (direct API)
+
 | Command | Description | Alias |
 |---|---|---|
-| `ytcli issues [query]` | List/search issues | `i` |
-| `ytcli show <id>` | Show issue details | `s` |
-| `ytcli create <project>` | Create an issue | `n` |
-| `ytcli edit <id>` | Edit an issue | |
+| `ytcli issues [query]` | List/search YouTrack issues | `i`, `search` |
+| `ytcli create <project>` | Create directly on YouTrack | `n` |
 | `ytcli cmd <id> <command>` | Apply YouTrack command | `c` |
-| `ytcli comment <id> <text>` | Add comment | |
-| `ytcli comments <id>` | List comments | |
 | `ytcli projects` | List projects | |
+| `ytcli project <id>` | Show project details | |
 | `ytcli log <id> <duration>` | Log work time | |
 | `ytcli link <id> <target>` | Link issues | |
-| `ytcli tags` | List tags | |
-| `ytcli tag-add <id> <tag>` | Add tag to issue | |
-| `ytcli tag-remove <id> <tag-id>` | Remove tag from issue | |
-| `ytcli open <id>` | Open issue in browser | `o` |
-| `ytcli auth login [instance]` | Authenticate | |
-| `ytcli auth whoami` | Show current user | |
-| `ytcli config setup` | Interactive setup | |
-| `ytcli config init` | Init local configs | |
-| `ytcli completion <shell>` | Shell completions | |
+
+### Config & Auth
+
+| Command | Description |
+|---|---|
+| `ytcli auth login [instance]` | Authenticate |
+| `ytcli auth whoami` | Show current user |
+| `ytcli config setup` | Interactive setup |
+| `ytcli config init` | Init local configs |
+| `ytcli config set <key> <value>` | Set config value |
+| `ytcli config get <key>` | Get config value |
+| `ytcli config instances` | List instances |
+| `ytcli completion <shell>` | Shell completions |
+| `ytcli version` | Version info |
 
 ## Global Flags
 
@@ -138,11 +217,11 @@ ytcli config init
 ## Agent Usage
 
 ```bash
-# Get structured data
+# Get structured data from remote
 ytcli issues "#Unresolved for: me" --output json --quiet
 
-# Create and get back the issue ID
-ytcli create PROJ -s "New bug" -o json --quiet
+# Create locally and get back the ID
+ytcli add "New bug" -o json --quiet
 
 # Apply a command silently
 ytcli cmd PROJ-42 "Fixed" -q
@@ -158,12 +237,29 @@ Exit codes:
 ## Architecture
 
 ```
-CLI (cobra)  →  Service Layer  →  API Client  →  YouTrack REST API
-                    ↑                ↑
-TUI (future)  →  Renderer    →  Config + Keyring
+┌─────────────────────────────────────────────────────────┐
+│                    ytcli binary                          │
+│  ┌────────────┐  ┌────────────┐  ┌────────────────┐    │
+│  │  CLI/TUI    │  │  Service   │  │  Sync Manager  │    │
+│  │  (cobra)    │  │  Layer     │  │                │    │
+│  └──────┬─────┘  └──────┬─────┘  └───────┬────────┘    │
+│         │               │                │              │
+│  ┌──────▼───────────────▼────────────────▼──────────┐   │
+│  │              Local Store (SQLite)                  │   │
+│  │  ┌────────┐ ┌─────────┐ ┌───────┐ ┌──────────┐  │   │
+│  │  │ issues │ │ comments│ │ queue │ │ projects │  │   │
+│  │  │ + FTS5 │ │         │ │ (ops) │ │ + schema │  │   │
+│  │  └────────┘ └─────────┘ └───────┘ └──────────┘  │   │
+│  └──────────────────────────────────────────────────┘   │
+│         │                               │               │
+│  ┌──────▼──────┐              ┌─────────▼─────────┐    │
+│  │  Local-only │              │  YouTrack API      │    │
+│  │  (offline)  │              │  (online, sync)    │    │
+│  └─────────────┘              └───────────────────┘    │
+└─────────────────────────────────────────────────────────┘
 ```
 
-The Service layer is the boundary. Both CLI and future TUI call into the same services. The Renderer formats output for the appropriate mode.
+The local store is the primary data path. Remote commands bypass it and hit the API directly.
 
 ## License
 

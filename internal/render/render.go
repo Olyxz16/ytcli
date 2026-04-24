@@ -13,13 +13,12 @@ import (
 )
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
-	labelStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	valueStyle    = lipgloss.NewStyle()
-	idStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true)
-	resolvedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
+	labelStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	idStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true)
+	resolvedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
 	unresolvedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	headerStyle   = lipgloss.NewStyle().Bold(true).Underline(true)
+	headerStyle     = lipgloss.NewStyle().Bold(true).Underline(true)
 )
 
 // OutputMode controls how data is rendered.

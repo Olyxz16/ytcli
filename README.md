@@ -1,17 +1,8 @@
 # ytcli
 
-A fast, agent-friendly, **offline-first** command-line interface for JetBrains YouTrack.
+A fast, **offline-first** command-line issue tracker that optionally syncs to JetBrains YouTrack.
 
-## Features
-
-- **Offline-first ticketing**: All daily operations hit a local SQLite database. Zero latency. Works on a plane.
-- **Sync on demand**: `ytcli sync` bridges your local tickets to YouTrack when you're ready to collaborate.
-- **Standalone mode**: No YouTrack account needed. Use ytcli as a local TODO tracker for small projects.
-- **Speed-first design**: Built in Go for instant startup and execution.
-- **Agent-friendly**: Structured JSON output, meaningful exit codes, stdin support.
-- **YouTrack Commands API**: Apply complex state changes with natural syntax.
-- **Shell completions**: Bash, Zsh, Fish, PowerShell.
-- **Interactive setup**: Guided configuration with Charm's `huh` forms.
+Think of it as a local TODO list with superpowers: instant creation, full-text search, and state management — no server needed. When you want to collaborate, `ytcli sync` pushes your tickets to YouTrack and pulls updates back.
 
 ## Installation
 
@@ -27,83 +18,128 @@ cd ytcli
 make build
 ```
 
-## Quick Start
+## Usage
 
-### Local-only mode (no YouTrack needed)
+ytcli has two operating modes. You can use either or both at the same time.
+
+---
+
+### Mode 1: Fully Offline (Standalone)
+
+No YouTrack account, no internet, no problem. ytcli works as a local issue tracker backed by SQLite.
 
 ```bash
-# Initialize a local project
+# Initialize a project in the current directory
 ytcli init
 
-# Add issues instantly — no network required
-ytcli add "Fix login bug" -d "OAuth token exchange fails" -P Critical
+# Create issues instantly — no network, no latency
+ytcli add "Fix login bug" -d "OAuth token exchange fails" -P Critical --tag bug
 ytcli add "Add dark mode" --tag ui
 ytcli add "Refactor API" --state "In Progress"
 
-# List all local issues
+# List all issues
 ytcli list
-ytcli ls
+ytcli ls                          # same thing, shorter
 
-# Search locally with full-text search
+# Search with full-text search (FTS5)
 ytcli list "OAuth"
+ytcli list --state "In Progress"  # filter by state
 
 # Show issue detail
 ytcli show '#1'
 
-# Edit, change state, mark done
-ytcli edit '#1' -s "Fix OAuth login bug"
+# Edit fields
+ytcli edit '#1' -s "Fix OAuth login bug" -d "Updated description"
+
+# Change state
 ytcli state '#1' "In Progress"
-ytcli done '#3'
+ytcli done '#3'                   # shortcut to Done
 
 # Add comments
-ytcli comment '#1' "Investigating the flow"
+ytcli comment '#1' "Found the root cause"
+ytcli comments '#1'               # list all comments
 
-# Open in $EDITOR (unsynced) or browser (synced)
+# Tags
+ytcli tag-add '#1' urgent
+ytcli tag-remove '#1' urgent
+ytcli tags                        # list all tags
+
+# Open in $EDITOR
 ytcli open '#1'
 
-# Check sync status
+# Delete
+ytcli delete '#1'
+```
+
+**What's happening:** Every command above writes to `.ytcli/store.db`, a local SQLite database. Nothing leaves your machine.
+
+---
+
+### Mode 2: YouTrack Sidecar (Sync)
+
+Connect your local project to a YouTrack instance. Work offline, sync when ready.
+
+```bash
+# Step 1: Configure your YouTrack instance
+ytcli config setup
+# (interactive prompt: name, URL, token)
+
+# Step 2: Set the project for this directory
+ytcli config set project PROJ
+
+# Step 3: Pull existing YouTrack issues into your local store
+ytcli sync --pull
+
+# Step 4: Work locally as usual — everything is instant and offline
+ytcli add "New ticket from CLI"
+ytcli edit '#1' -s "Updated summary"
+ytcli comment '#1' "Left a comment"
+
+# Step 5: Sync when you're ready
+ytcli sync                        # pull remote changes + push local changes
+ytcli sync --push                 # push only (skip pulling)
+ytcli sync --pull                 # pull only (skip pushing)
+ytcli sync --dry-run              # preview what would happen
+
+# Check sync status anytime
 ytcli sync --status
 ```
 
-### Connect to YouTrack for collaboration
+**ID mapping:** After sync, local `#1` also resolves as `PROJ-42`. Both refer to the same issue.
 
 ```bash
-# Configure a YouTrack instance
-ytcli config setup
-
-# Pull remote issues into local store
-ytcli sync --pull
-
-# Push local changes to YouTrack
-ytcli sync --push
-
-# Full bidirectional sync
-ytcli sync
+ytcli show '#1'        # works
+ytcli show PROJ-42     # same issue, also works
 ```
 
-### Direct YouTrack API commands (online)
+---
+
+### Mode 3: Direct YouTrack API (No Local Store)
+
+For quick one-off operations against YouTrack without touching the local database:
 
 ```bash
-# List remote issues
+# List/search remote issues (always hits the API)
 ytcli issues "#Unresolved for: me"
-
-# Apply a command directly
-ytcli cmd PROJ-42 "State: In Progress for: me"
+ytcli issues "project: PROJ #Unresolved" --limit 20
 
 # Create directly on YouTrack
 ytcli create PROJ -s "Bug found" -d "Details here" -P Critical
+
+# Apply YouTrack commands (the fast way)
+ytcli cmd PROJ-42 "State: In Progress for: me"
+ytcli cmd PROJ-42 "Priority: Critical" --silent
+
+# Add comment directly
+ytcli comment PROJ-42 "Working on this"
+
+# Open in browser
+ytcli open PROJ-42
 ```
 
-## How It Works
+These commands bypass the local store and hit the YouTrack REST API directly.
 
-ytcli uses a **local-first** architecture:
-
-1. **Local SQLite database** (`.ytcli/store.db`) is the primary data store
-2. All `add`, `list`, `show`, `edit`, `state`, `comment`, `tag` commands operate instantly on the local DB
-3. `ytcli sync` performs bidirectional sync with YouTrack:
-   - **Pull**: Fetch remote issues, update local copies
-   - **Push**: Send local creates/edits/comments to YouTrack
-4. Issues get hybrid IDs: `#1` locally, `PROJ-42` after sync. Both resolve to the same issue.
+---
 
 ## Configuration
 
@@ -119,7 +155,7 @@ default_instance: work
 output_format: table
 ```
 
-Tokens are stored in your OS keyring (fallback to `~/.config/ytcli/credentials.yml` with 0600 permissions).
+Tokens are stored in your OS keyring. Fallback to `~/.config/ytcli/credentials.yml` with 0600 permissions.
 
 ### Local config (per directory)
 
@@ -148,13 +184,11 @@ local:
 current_task: PROJ-42
 ```
 
-Initialize both with:
+Created automatically by `ytcli init`.
 
-```bash
-ytcli init
-```
+---
 
-## Commands
+## Command Reference
 
 ### Local (offline-first)
 
@@ -162,11 +196,11 @@ ytcli init
 |---|---|
 | `ytcli init` | Initialize local project with SQLite store |
 | `ytcli add "Summary"` | Create a local issue |
-| `ytcli list [query]` | List local issues (FTS5 search) |
-| `ytcli ls` | Alias for list |
-| `ytcli show <#id\|remote-id>` | Show issue detail (local first, remote fallback) |
+| `ytcli list [query]` | List/search local issues (FTS5) |
+| `ytcli ls` | Alias for `list` |
+| `ytcli show <id>` | Show issue detail |
 | `ytcli edit <id>` | Edit an issue |
-| `ytcli state <id> <state>` | Change issue state |
+| `ytcli state <id> <state>` | Change state |
 | `ytcli done <id>` | Mark as done |
 | `ytcli comment <id> <text>` | Add comment |
 | `ytcli comments <id>` | List comments |
@@ -175,10 +209,16 @@ ytcli init
 | `ytcli tag-remove <id> <tag>` | Remove tag |
 | `ytcli tags` | List tags |
 | `ytcli delete <id>` | Delete issue |
-| `ytcli sync` | Bidirectional sync with YouTrack |
+
+### Sync
+
+| Command | Description |
+|---|---|
+| `ytcli sync` | Bidirectional sync (pull then push) |
 | `ytcli sync --status` | Show sync status |
 | `ytcli sync --pull` | Pull remote changes only |
 | `ytcli sync --push` | Push local changes only |
+| `ytcli sync --dry-run` | Preview without applying |
 
 ### Remote (direct API)
 
@@ -206,6 +246,8 @@ ytcli init
 | `ytcli completion <shell>` | Shell completions |
 | `ytcli version` | Version info |
 
+---
+
 ## Global Flags
 
 | Flag | Description |
@@ -213,6 +255,8 @@ ytcli init
 | `-i, --instance` | Target instance name |
 | `-o, --output` | Output format: `table`, `json`, `wide`, `markdown` |
 | `-q, --quiet` | Minimal output (IDs only, implies JSON) |
+
+---
 
 ## Agent Usage
 
@@ -233,6 +277,8 @@ Exit codes:
 - `2` — authentication error
 - `3` — not found
 - `4` — validation error
+
+---
 
 ## Architecture
 

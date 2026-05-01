@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"github.com/Olyxz16/ytcli/internal/config"
 	"github.com/Olyxz16/ytcli/internal/local"
@@ -25,39 +28,91 @@ var initCmd = &cobra.Command{
 			handleError(err)
 		}
 
-		// Open/create the database
 		db, err := store.Open()
 		if err != nil {
 			handleError(err)
 		}
 		db.Close()
 
-		// Create/update .ytcli.yml with local schema defaults
 		localCfg, path, err := config.LoadLocal()
 		if err != nil {
 			handleError(err)
 		}
-		if path == "" {
-			path = wd
-		} else {
-			path = filepath.Dir(path)
+		configDir := wd
+		if path != "" {
+			configDir = filepath.Dir(path)
 		}
 
 		if len(localCfg.Local.States) == 0 {
 			localCfg.Local = local.DefaultSchema
 		}
 
-		if err := config.SaveLocal(localCfg, path); err != nil {
+		global, _ := config.LoadGlobal()
+		if global.Instances == nil {
+			global.Instances = make(map[string]config.InstanceConfig)
+		}
+
+		if localCfg.Instance == "" && len(global.Instances) > 0 {
+			instanceNames := sortedKeys(global.Instances)
+			defaultInst := global.DefaultInstance
+			if defaultInst == "" && len(instanceNames) > 0 {
+				defaultInst = instanceNames[0]
+			}
+
+			var selectedInstance string
+			options := make([]huh.Option[string], len(instanceNames))
+			for i, name := range instanceNames {
+				options[i] = huh.NewOption(fmt.Sprintf("%s (%s)", name, global.Instances[name].URL), name)
+			}
+
+			var skipInstance bool
+			fields := []huh.Field{
+				huh.NewSelect[string]().
+					Title("Select YouTrack instance for this project").
+					Options(options...).
+					Value(&selectedInstance).
+					WithHeight(min(len(options)+1, 10)),
+			}
+
+			if len(instanceNames) > 0 {
+				fields = append(fields, huh.NewConfirm().
+					Title("Skip instance binding? (for local-only project)").
+					Affirmative("No").
+					Negative("Yes").
+					Value(&skipInstance))
+			}
+
+			form := huh.NewForm(huh.NewGroup(fields...))
+			if err := form.Run(); err == nil && !skipInstance && selectedInstance != "" {
+				localCfg.Instance = selectedInstance
+			}
+		}
+
+		if localCfg.Project == "" {
+			var projectShort string
+			prompt := huh.NewInput().
+				Title("Project short name (e.g., PROJ)").
+				Placeholder("PROJ").
+				Value(&projectShort)
+			form := huh.NewForm(huh.NewGroup(prompt))
+			if err := form.Run(); err == nil {
+				projectShort = strings.TrimSpace(projectShort)
+				if projectShort != "" {
+					localCfg.Project = projectShort
+				}
+			}
+		}
+
+		if err := config.SaveLocal(localCfg, configDir); err != nil {
 			handleError(err)
 		}
 
-		// Ensure .ytcli.local.yml exists and .gitignore includes it
 		private := &config.LocalPrivateConfig{}
-		if err := config.SaveLocalPrivate(private, path); err != nil {
+		if err := config.SaveLocalPrivate(private, configDir); err != nil {
 			handleError(err)
 		}
 
-		gitignorePath := filepath.Join(path, ".gitignore")
+		gitignorePath := filepath.Join(configDir, ".gitignore")
 		entry := ".ytcli.local.yml\n"
 		data, err := os.ReadFile(gitignorePath)
 		if err != nil {
@@ -72,7 +127,22 @@ var initCmd = &cobra.Command{
 		fmt.Println("  - SQLite database: .ytcli/store.db")
 		fmt.Println("  - Config: .ytcli.yml")
 		fmt.Println("  - Private config: .ytcli.local.yml")
+		if localCfg.Instance != "" {
+			fmt.Printf("  - Instance: %s\n", localCfg.Instance)
+		}
+		if localCfg.Project != "" {
+			fmt.Printf("  - Project: %s\n", localCfg.Project)
+		}
 	},
+}
+
+func sortedKeys(m map[string]config.InstanceConfig) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 func contains(s, substr string) bool {
@@ -86,6 +156,13 @@ func containsAt(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func init() {

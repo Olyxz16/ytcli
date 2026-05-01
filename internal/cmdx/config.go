@@ -107,8 +107,14 @@ var configSetCmd = &cobra.Command{
 					path = filepath.Dir(path)
 				}
 				switch key {
-				case "instance":
-					local.Instance = value
+case "instance":
+				if _, ok := global.Instances[value]; !ok && len(global.Instances) > 0 {
+					fmt.Fprintf(os.Stderr, "Warning: instance %q not found in global config. Available instances:\n", value)
+					for name, inst := range global.Instances {
+						fmt.Fprintf(os.Stderr, "  - %s: %s\n", name, inst.URL)
+					}
+				}
+				local.Instance = value
 				case "project":
 					local.Project = value
 				case "default_query":

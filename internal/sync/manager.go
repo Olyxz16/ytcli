@@ -119,37 +119,84 @@ func (m *Manager) syncRemoteIssue(ctx context.Context, ri model.Issue) error {
 	}
 
 	if existing == nil {
-		// New remote issue — insert locally
 		assignee := ""
 		if ri.Reporter != nil {
 			assignee = ri.Reporter.Login
 		}
 		state := "Open"
+		priority := "Normal"
+		for _, cf := range ri.CustomFields {
+			if cf.Name == "State" && cf.Value != nil {
+				if s, ok := cf.Value.(map[string]interface{}); ok {
+					if name, ok := s["name"].(string); ok {
+						state = name
+					}
+				}
+			}
+			if cf.Name == "Priority" && cf.Value != nil {
+				if s, ok := cf.Value.(map[string]interface{}); ok {
+					if name, ok := s["name"].(string); ok {
+						priority = name
+					}
+				}
+			}
+		}
 		if ri.Resolved != nil {
 			state = "Closed"
 		}
-		_, err := m.db.Exec(
+
+		result, err := m.db.Exec(
 			`INSERT INTO issues(remote_id, remote_db_id, summary, description, state, priority, assignee, created_at, updated_at, synced_at, sync_status)
 			 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
-			ri.IDReadable, ri.ID, ri.Summary, ri.Description, state, "Normal", assignee,
-			ri.Created, ri.Updated, time.Now().UTC(),
+			ri.IDReadable, ri.ID, ri.Summary, ri.Description, state, priority, assignee,
+			time.UnixMilli(ri.Created), time.UnixMilli(ri.Updated), time.Now().UTC(),
 		)
-		return err
-	}
+		if err != nil {
+			return err
+		}
+		localID, _ := result.LastInsertId()
 
-	// Existing issue — check for conflicts
-	if existing.SyncStatus == "modified" || existing.SyncStatus == "conflict" {
-		// Skip remote update, keep local changes
+		if len(ri.Tags) > 0 {
+			tags := make([]struct{ Name, RemoteID string }, len(ri.Tags))
+			for i, t := range ri.Tags {
+				tags[i] = struct{ Name, RemoteID string }{t.Name, t.ID}
+			}
+			if err := store.SyncIssueTags(m.db, localID, tags); err != nil {
+				return fmt.Errorf("sync tags: %w", err)
+			}
+		}
 		return nil
 	}
 
-	// Update local copy with remote data
+	if existing.SyncStatus == "modified" || existing.SyncStatus == "conflict" {
+		return nil
+	}
+
 	_, err = m.db.Exec(
 		`UPDATE issues SET summary = ?, description = ?, updated_at = ?, synced_at = ?, sync_status = 'synced'
 		 WHERE id = ?`,
 		ri.Summary, ri.Description, time.Now().UTC(), time.Now().UTC(), existing.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if len(ri.Tags) > 0 {
+		tags := make([]struct{ Name, RemoteID string }, len(ri.Tags))
+		for i, t := range ri.Tags {
+			tags[i] = struct{ Name, RemoteID string }{t.Name, t.ID}
+		}
+		if err := store.SyncIssueTags(m.db, existing.ID, tags); err != nil {
+			return fmt.Errorf("sync tags: %w", err)
+		}
+	} else {
+		_, err := m.db.Exec("DELETE FROM issue_tags WHERE issue_id = ?", existing.ID)
+		if err != nil {
+			return fmt.Errorf("clear tags: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // processQueueItem executes a single sync queue item against the remote API.

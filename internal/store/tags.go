@@ -13,7 +13,6 @@ func CreateTag(db *sql.DB, name string) (int64, error) {
 	}
 	id, _ := res.LastInsertId()
 	if id == 0 {
-		// Tag already existed, look it up
 		var existingID int64
 		err := db.QueryRow("SELECT id FROM tags WHERE name = ?", name).Scan(&existingID)
 		if err != nil {
@@ -21,6 +20,22 @@ func CreateTag(db *sql.DB, name string) (int64, error) {
 		}
 		return existingID, nil
 	}
+	return id, nil
+}
+
+// CreateTagWithRemoteID inserts a tag with its remote ID, or updates the remote ID if it already exists.
+func CreateTagWithRemoteID(db *sql.DB, name, remoteID string) (int64, error) {
+	var existingID int64
+	err := db.QueryRow("SELECT id FROM tags WHERE name = ?", name).Scan(&existingID)
+	if err == nil {
+		_, err := db.Exec("UPDATE tags SET remote_id = ? WHERE id = ?", remoteID, existingID)
+		return existingID, err
+	}
+	res, err := db.Exec("INSERT INTO tags(name, remote_id) VALUES(?, ?)", name, remoteID)
+	if err != nil {
+		return 0, fmt.Errorf("insert tag: %w", err)
+	}
+	id, _ := res.LastInsertId()
 	return id, nil
 }
 
@@ -94,4 +109,24 @@ func GetIssueTags(db *sql.DB, issueID int64) ([]string, error) {
 		tags = append(tags, name)
 	}
 	return tags, nil
+}
+
+// SyncIssueTags replaces all tags for an issue with the given tags.
+// It also stores the remote_id mapping for each tag.
+func SyncIssueTags(db *sql.DB, issueID int64, tags []struct{ Name, RemoteID string }) error {
+	_, err := db.Exec("DELETE FROM issue_tags WHERE issue_id = ?", issueID)
+	if err != nil {
+		return fmt.Errorf("clear issue tags: %w", err)
+	}
+	for _, tag := range tags {
+		tagID, err := CreateTagWithRemoteID(db, tag.Name, tag.RemoteID)
+		if err != nil {
+			return fmt.Errorf("create tag %q: %w", tag.Name, err)
+		}
+		_, err = db.Exec("INSERT OR IGNORE INTO issue_tags(issue_id, tag_id) VALUES(?, ?)", issueID, tagID)
+		if err != nil {
+			return fmt.Errorf("link tag %q: %w", tag.Name, err)
+		}
+	}
+	return nil
 }

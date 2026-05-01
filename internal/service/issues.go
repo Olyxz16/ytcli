@@ -183,7 +183,17 @@ func (s *Service) AddTagToIssue(ctx context.Context, issueID string, tag model.T
 	return s.client.AddTagToIssue(ctx, issueID, tag)
 }
 
-// RemoveTagFromIssue removes a tag from an issue.
-func (s *Service) RemoveTagFromIssue(ctx context.Context, issueID, tagID string) error {
-	return s.client.RemoveTagFromIssue(ctx, issueID, tagID)
+// RemoveTagFromIssue removes a tag from an issue by tag name.
+// It resolves the tag name to its ID by fetching the issue's tags first.
+func (s *Service) RemoveTagFromIssue(ctx context.Context, issueID, tagName string) error {
+	issue, err := s.client.GetIssue(ctx, issueID, false)
+	if err != nil {
+		return fmt.Errorf("fetch issue tags: %w", err)
+	}
+	for _, tag := range issue.Tags {
+		if tag.Name == tagName {
+			return s.client.RemoveTagFromIssue(ctx, issueID, tag.ID)
+		}
+	}
+	return fmt.Errorf("tag %q not found on issue %s", tagName, issueID)
 }

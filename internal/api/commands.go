@@ -15,9 +15,18 @@ func (c *Client) ExecuteCommand(ctx context.Context, cmd model.CommandResult, si
 		q.Set("muteUpdateNotifications", "true")
 	}
 
+	issues := make([]map[string]string, len(cmd.Issues))
+	for i, issue := range cmd.Issues {
+		if issue.ID != "" {
+			issues[i] = map[string]string{"id": issue.ID}
+		} else {
+			issues[i] = map[string]string{"idReadable": issue.IDReadable}
+		}
+	}
+
 	payload := map[string]interface{}{
 		"query":  cmd.Query,
-		"issues": cmd.Issues,
+		"issues": issues,
 	}
 
 	var result model.CommandResult

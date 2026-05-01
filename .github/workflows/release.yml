@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build Linux amd64
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: 1
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli-linux-amd64 ./cmd/ytcli
+          tar czf ytcli-${VERSION}-linux-amd64.tar.gz ytcli-linux-amd64
+
+      - name: Build Linux arm64
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli-linux-arm64 ./cmd/ytcli
+          tar czf ytcli-${VERSION}-linux-arm64.tar.gz ytcli-linux-arm64
+
+      - name: Build macOS amd64
+        env:
+          GOOS: darwin
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli-darwin-amd64 ./cmd/ytcli
+          tar czf ytcli-${VERSION}-darwin-amd64.tar.gz ytcli-darwin-amd64
+
+      - name: Build macOS arm64
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli-darwin-arm64 ./cmd/ytcli
+          tar czf ytcli-${VERSION}-darwin-arm64.tar.gz ytcli-darwin-arm64
+
+      - name: Build Windows amd64
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli-windows-amd64.exe ./cmd/ytcli
+          zip ytcli-${VERSION}-windows-amd64.zip ytcli-windows-amd64.exe
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Create Debian package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+          mkdir -p ytcli_${VERSION}_amd64/DEBIAN
+          mkdir -p ytcli_${VERSION}_amd64/usr/local/bin
+          cp ytcli-linux-amd64 ytcli_${VERSION}_amd64/usr/local/bin/ytcli
+          chmod +x ytcli_${VERSION}_amd64/usr/local/bin/ytcli
+          cat > ytcli_${VERSION}_amd64/DEBIAN/control <<EOF
+          Package: ytcli
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: ytcli
+          Description: A fast, agent-friendly CLI for JetBrains YouTrack
+           Manage YouTrack issues, articles, and projects from the command line.
+           Supports offline-first workflow with local SQLite store and bidirectional sync.
+          EOF
+          dpkg-deb --build ytcli_${VERSION}_amd64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            ytcli-${{ github.ref_name }}-linux-amd64.tar.gz
+            ytcli-${{ github.ref_name }}-linux-arm64.tar.gz
+            ytcli-${{ github.ref_name }}-darwin-amd64.tar.gz
+            ytcli-${{ github.ref_name }}-darwin-arm64.tar.gz
+            ytcli-${{ github.ref_name }}-windows-amd64.zip
+            ytcli_*.deb
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
+
+          DEB_PKG=$(ls ytcli_*.deb)
+
+          gh release create "$VERSION" \
+            ytcli-${VERSION}-linux-amd64.tar.gz \
+            ytcli-${VERSION}-linux-arm64.tar.gz \
+            ytcli-${VERSION}-darwin-amd64.tar.gz \
+            ytcli-${VERSION}-darwin-arm64.tar.gz \
+            ytcli-${VERSION}-windows-amd64.zip \
+            ${DEB_PKG} \
+            --title "ytcli ${VERSION}" \
+            --notes "## ytcli ${VERSION}
+
+          ### Downloads
+          - **Linux (amd64)**: \`ytcli-${VERSION}-linux-amd64.tar.gz\`
+          - **Linux (arm64)**: \`ytcli-${VERSION}-linux-arm64.tar.gz\`
+          - **macOS (Intel)**: \`ytcli-${VERSION}-darwin-amd64.tar.gz\`
+          - **macOS (Apple Silicon)**: \`ytcli-${VERSION}-darwin-arm64.tar.gz\`
+          - **Windows (amd64)**: \`ytcli-${VERSION}-windows-amd64.zip\`
+          - **Debian/Ubuntu (amd64)**: \`${DEB_PKG}\`
+
+          ### Install
+          \`\`\`bash
+          # Linux/macOS
+          tar xzf ytcli-${VERSION}-linux-amd64.tar.gz
+          sudo mv ytcli-linux-amd64 /usr/local/bin/ytcli
+
+          # Debian/Ubuntu
+          sudo dpkg -i ${DEB_PKG}
+
+          # Windows
+          # Extract the zip and add ytcli.exe to your PATH
+          \`\`\`"

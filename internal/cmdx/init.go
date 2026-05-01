@@ -54,10 +54,6 @@ var initCmd = &cobra.Command{
 
 		if localCfg.Instance == "" && len(global.Instances) > 0 {
 			instanceNames := sortedKeys(global.Instances)
-			defaultInst := global.DefaultInstance
-			if defaultInst == "" && len(instanceNames) > 0 {
-				defaultInst = instanceNames[0]
-			}
 
 			var selectedInstance string
 			options := make([]huh.Option[string], len(instanceNames))

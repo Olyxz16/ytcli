@@ -38,12 +38,7 @@ requires the instance to have a Hub service configured and a client_id.
 			handleError(err)
 		}
 
-		instance := global.DefaultInstance
-		if instance == "" && len(global.Instances) == 1 {
-			for name := range global.Instances {
-				instance = name
-			}
-		}
+		instance := ""
 		localCfg, _, _ := config.LoadLocal()
 		if localCfg != nil && localCfg.Instance != "" {
 			instance = localCfg.Instance
@@ -52,7 +47,8 @@ requires the instance to have a Hub service configured and a client_id.
 			instance = args[0]
 		}
 		if instance == "" {
-			instance = "default"
+			fmt.Fprintln(os.Stderr, "Error: no instance specified. Provide an instance name or bind this project with: ytcli config set instance <name>")
+			os.Exit(1)
 		}
 
 		inst, ok := global.Instances[instance]

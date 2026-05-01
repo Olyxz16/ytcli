@@ -20,7 +20,6 @@ var configSetupCmd = &cobra.Command{
 		}
 
 		var instanceName, instanceURL, token string
-		var setDefault bool
 
 		// Instance name
 		huh.NewInput().
@@ -58,24 +57,11 @@ var configSetupCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Set as default?
-		if len(global.Instances) == 0 {
-			setDefault = true
-		} else {
-			huh.NewConfirm().
-				Title("Set as default instance?").
-				Value(&setDefault).
-				Run()
-		}
-
 		// Save
 		if global.Instances == nil {
 			global.Instances = make(map[string]config.InstanceConfig)
 		}
 		global.Instances[instanceName] = config.InstanceConfig{URL: instanceURL}
-		if setDefault {
-			global.DefaultInstance = instanceName
-		}
 
 		if err := config.SaveGlobal(global); err != nil {
 			handleError(err)
@@ -86,9 +72,12 @@ var configSetupCmd = &cobra.Command{
 				handleError(err)
 			}
 			fmt.Println("Token saved to fallback credentials file")
+		} else {
+			fmt.Println("Token saved to keyring")
 		}
 
 		fmt.Printf("Instance %q configured successfully.\n", instanceName)
+		fmt.Println("To bind this project to this instance, run: ytcli config set instance " + instanceName)
 	},
 }
 

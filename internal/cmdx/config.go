@@ -79,8 +79,6 @@ var configSetCmd = &cobra.Command{
 		}
 
 		switch key {
-		case "default_instance":
-			global.DefaultInstance = value
 		case "output_format":
 			global.OutputFormat = value
 		default:
@@ -180,25 +178,23 @@ var configInstancesCmd = &cobra.Command{
 		}
 		local, _, _ := config.LoadLocal()
 
-		activeInstance := global.DefaultInstance
+		activeInstance := ""
 		if local != nil && local.Instance != "" {
 			activeInstance = local.Instance
 		}
 
 		if getOutputMode() == render.OutputJSON {
 			type instanceInfo struct {
-				Name     string `json:"name"`
-				URL      string `json:"url"`
-				Active   bool   `json:"active"`
-				Default  bool   `json:"default"`
+				Name   string `json:"name"`
+				URL    string `json:"url"`
+				Active bool   `json:"active"`
 			}
 			var instances []instanceInfo
 			for name, inst := range global.Instances {
 				instances = append(instances, instanceInfo{
-					Name:    name,
-					URL:     inst.URL,
-					Active:  name == activeInstance,
-					Default: name == global.DefaultInstance,
+					Name:   name,
+					URL:    inst.URL,
+					Active: name == activeInstance,
 				})
 			}
 			render.JSON(instances)

@@ -11,14 +11,16 @@ import (
 
 // InstanceConfig holds the configuration for a single YouTrack instance.
 type InstanceConfig struct {
-	URL string `yaml:"url"`
+	URL      string `yaml:"url"`
+	HubURL   string `yaml:"hub_url,omitempty"`
+	ClientID string `yaml:"client_id,omitempty"`
+	Scope    string `yaml:"scope,omitempty"`
 }
 
 // GlobalConfig holds the user's global configuration.
 type GlobalConfig struct {
-	Instances       map[string]InstanceConfig `yaml:"instances"`
-	DefaultInstance string                    `yaml:"default_instance"`
-	OutputFormat    string                    `yaml:"output_format"`
+	Instances    map[string]InstanceConfig `yaml:"instances"`
+	OutputFormat string                    `yaml:"output_format"`
 }
 
 // LocalSchema defines states, priorities, and other schema for local issues.
@@ -193,9 +195,10 @@ func SaveLocalPrivate(cfg *LocalPrivateConfig, dir string) error {
 }
 
 // Resolve merges global, local, and private configs into a single effective config.
+// The instance must be explicitly set in local config (.ytcli.yml) or via the --instance flag.
+// There is no "default" instance — forgetting to configure results in an error.
 func Resolve(global *GlobalConfig, local *LocalConfig, private *LocalPrivateConfig) (*MergedConfig, error) {
 	m := &MergedConfig{
-		Instance:     global.DefaultInstance,
 		OutputFormat: global.OutputFormat,
 	}
 
@@ -217,7 +220,6 @@ func Resolve(global *GlobalConfig, local *LocalConfig, private *LocalPrivateConf
 		}
 	}
 
-	// Resolve instance URL
 	if m.Instance != "" {
 		inst, ok := global.Instances[m.Instance]
 		if !ok {

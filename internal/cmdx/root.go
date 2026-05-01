@@ -92,12 +92,10 @@ func buildService() (*service.Service, *config.MergedConfig, error) {
 
 	if merged.InstanceURL == "" {
 		msg := "no YouTrack instance configured"
-		if local != nil && local.Instance == "" && len(global.Instances) > 0 {
-			msg = "no instance bound to this project. Run: ytcli init or ytcli config set instance <name>"
-		} else if len(global.Instances) == 0 {
-			msg = "no YouTrack instance configured. Run: ytcli config setup"
+		if len(global.Instances) == 0 {
+			msg = "no YouTrack instances configured. Run: ytcli config setup"
 		} else {
-			msg = "no YouTrack instance configured. Run: ytcli auth login"
+			msg = "no instance bound to this project. Run: ytcli init or ytcli config set instance <name>"
 		}
 		return nil, nil, fmt.Errorf("%s", msg)
 	}

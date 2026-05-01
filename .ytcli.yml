@@ -1,3 +1,5 @@
+instance: ytcli
+project: YTCLI
 local:
     states:
         - Open

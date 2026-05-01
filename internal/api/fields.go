@@ -80,6 +80,49 @@ func ProjectList() *Fields {
 	return NewFields("id", "name", "shortName", "description")
 }
 
+// ArticleList returns default fields for listing articles.
+func ArticleList() *Fields {
+	return NewFields(
+		"id",
+		"idReadable",
+		"summary",
+		"created",
+		"updated",
+		"reporter(id,login,name,fullName)",
+		"project(id,name,shortName)",
+		"tags(id,name)",
+		"ordinal",
+		"commentsCount",
+	)
+}
+
+// ArticleDetail returns default fields for article detail.
+func ArticleDetail() *Fields {
+	return NewFields(
+		"id",
+		"idReadable",
+		"summary",
+		"content",
+		"wikifiedContent",
+		"created",
+		"updated",
+		"reporter(id,login,name,fullName)",
+		"project(id,name,shortName)",
+		"tags(id,name)",
+		"visibility(id,$type)",
+		"ordinal",
+		"commentsCount",
+		"parentArticle(id,idReadable,summary)",
+	)
+}
+
+// ArticleDetailWithComments returns fields for article detail including comments.
+func ArticleDetailWithComments() *Fields {
+	return ArticleDetail().Add(
+		"comments(id,text,created,updated,author(id,login,name,fullName))",
+	)
+}
+
 // UserDetail returns default fields for user detail.
 func UserDetail() *Fields {
 	return NewFields("id", "login", "name", "fullName", "email", "avatarUrl")

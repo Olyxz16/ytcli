@@ -197,3 +197,67 @@ func (s *Service) RemoveTagFromIssue(ctx context.Context, issueID, tagName strin
 	}
 	return fmt.Errorf("tag %q not found on issue %s", tagName, issueID)
 }
+
+// ListArticles lists articles matching a query.
+func (s *Service) ListArticles(ctx context.Context, query string, top, skip int) ([]model.Article, error) {
+	if top > 0 {
+		return s.client.ListArticles(ctx, query, top, skip)
+	}
+	var all []model.Article
+	for {
+		page, err := s.client.ListArticles(ctx, query, pageSize, skip)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		all = append(all, page...)
+		if len(page) < pageSize {
+			break
+		}
+		skip += pageSize
+	}
+	return all, nil
+}
+
+// GetArticle retrieves an article by ID.
+func (s *Service) GetArticle(ctx context.Context, id string, withComments bool) (*model.Article, error) {
+	return s.client.GetArticle(ctx, id, withComments)
+}
+
+// CreateArticle creates a new article.
+func (s *Service) CreateArticle(ctx context.Context, article model.Article) (*model.Article, error) {
+	if article.Project == nil || (article.Project.ID == "" && article.Project.ShortName == "") {
+		return nil, fmt.Errorf("project is required")
+	}
+	if article.Summary == "" {
+		return nil, fmt.Errorf("summary is required")
+	}
+	if article.Project.ID == "" && article.Project.ShortName != "" {
+		projects, err := s.client.ListProjects(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve project: %w", err)
+		}
+		for _, p := range projects {
+			if p.ShortName == article.Project.ShortName || p.Name == article.Project.ShortName {
+				article.Project.ID = p.ID
+				break
+			}
+		}
+		if article.Project.ID == "" {
+			return nil, fmt.Errorf("project %q not found", article.Project.ShortName)
+		}
+	}
+	return s.client.CreateArticle(ctx, article)
+}
+
+// UpdateArticle updates an article.
+func (s *Service) UpdateArticle(ctx context.Context, id string, updates map[string]interface{}) (*model.Article, error) {
+	return s.client.UpdateArticle(ctx, id, updates)
+}
+
+// DeleteArticle deletes an article.
+func (s *Service) DeleteArticle(ctx context.Context, id string) error {
+	return s.client.DeleteArticle(ctx, id)
+}

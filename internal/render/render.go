@@ -195,6 +195,108 @@ func ProjectList(projects []model.Project, mode OutputMode) error {
 	}
 }
 
+// ArticleList renders a list of articles.
+func ArticleList(articles []model.Article, mode OutputMode) error {
+	switch mode {
+	case OutputJSON:
+		return JSON(articles)
+	default:
+		return articleListTable(articles)
+	}
+}
+
+func articleListTable(articles []model.Article) error {
+	if len(articles) == 0 {
+		fmt.Println("No articles found.")
+		return nil
+	}
+
+	maxID := 10
+	maxSummary := 30
+	for _, a := range articles {
+		if len(a.IDReadable) > maxID {
+			maxID = len(a.IDReadable)
+		}
+		if len(a.Summary) > maxSummary {
+			maxSummary = len(a.Summary)
+		}
+	}
+
+	fmt.Println(headerStyle.Render(fmt.Sprintf(
+		"%-*s  %-*s  %s",
+		maxID, "ID",
+		maxSummary, "Summary",
+		"Updated",
+	)))
+
+	for _, a := range articles {
+		fmt.Printf(
+			"%s  %s  %s\n",
+			idStyle.Render(fmt.Sprintf("%-*s", maxID, a.IDReadable)),
+			truncate(a.Summary, maxSummary),
+			labelStyle.Render(formatTime(a.Updated)),
+		)
+	}
+	return nil
+}
+
+// ArticleDetail renders a single article in detail.
+func ArticleDetail(article *model.Article, mode OutputMode) error {
+	switch mode {
+	case OutputJSON:
+		return JSON(article)
+	default:
+		return articleDetailText(article)
+	}
+}
+
+func articleDetailText(article *model.Article) error {
+	fmt.Println(titleStyle.Render(article.IDReadable + ": " + article.Summary))
+	fmt.Println()
+
+	if article.Project != nil {
+		fmt.Printf("%s %s\n", labelStyle.Render("Project:"), article.Project.Name)
+	}
+	if article.Reporter != nil {
+		fmt.Printf("%s %s\n", labelStyle.Render("Author:"), article.Reporter.DisplayName())
+	}
+	fmt.Printf("%s %s\n", labelStyle.Render("Created:"), formatTime(article.Created))
+	fmt.Printf("%s %s\n", labelStyle.Render("Updated:"), formatTime(article.Updated))
+
+	if len(article.Tags) > 0 {
+		var tags []string
+		for _, t := range article.Tags {
+			tags = append(tags, t.Name)
+		}
+		fmt.Printf("%s %s\n", labelStyle.Render("Tags:"), strings.Join(tags, ", "))
+	}
+
+	if article.ParentArticle != nil {
+		fmt.Printf("%s %s\n", labelStyle.Render("Parent:"), article.ParentArticle.IDReadable)
+	}
+
+	if article.Content != "" {
+		fmt.Println()
+		fmt.Println(headerStyle.Render("Content"))
+		rendered, err := RenderMarkdown(article.Content)
+		if err == nil {
+			fmt.Println(rendered)
+		} else {
+			fmt.Println(article.Content)
+		}
+	}
+
+	if len(article.Comments) > 0 {
+		fmt.Println()
+		fmt.Println(headerStyle.Render("Comments"))
+		for _, c := range article.Comments {
+			fmt.Printf("  %s %s\n", labelStyle.Render(c.Author.DisplayName()+":"), c.Text)
+		}
+	}
+
+	return nil
+}
+
 // User renders a user.
 func User(user *model.User, mode OutputMode) error {
 	switch mode {

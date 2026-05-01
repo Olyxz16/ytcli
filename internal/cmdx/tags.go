@@ -94,6 +94,14 @@ var tagAddCmd = &cobra.Command{
 					if issue != nil && (issue.SyncStatus == "synced" || issue.SyncStatus == "modified") {
 						_ = store.Enqueue(db, "tag", "issue", issue.ID, map[string]interface{}{"tag": args[1]})
 					}
+					if quietFlag {
+						fmt.Println(args[0])
+						return
+					}
+					if getOutputMode() == render.OutputJSON {
+						render.JSON(map[string]interface{}{"issue": args[0], "tag": args[1], "added": true})
+						return
+					}
 					fmt.Println("Tag added")
 					return
 				}
@@ -109,6 +117,14 @@ var tagAddCmd = &cobra.Command{
 
 		if err := svc.AddTagToIssue(cmd.Context(), args[0], model.Tag{Name: args[1]}); err != nil {
 			handleError(err)
+		}
+		if quietFlag {
+			fmt.Println(args[0])
+			return
+		}
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(map[string]interface{}{"issue": args[0], "tag": args[1], "added": true})
+			return
 		}
 		fmt.Println("Tag added")
 	},
@@ -134,6 +150,14 @@ var tagRemoveCmd = &cobra.Command{
 					if issue != nil && (issue.SyncStatus == "synced" || issue.SyncStatus == "modified") {
 						_ = store.Enqueue(db, "untag", "issue", issue.ID, map[string]interface{}{"tag": args[1]})
 					}
+					if quietFlag {
+						fmt.Println(args[0])
+						return
+					}
+					if getOutputMode() == render.OutputJSON {
+						render.JSON(map[string]interface{}{"issue": args[0], "tag": args[1], "removed": true})
+						return
+					}
 					fmt.Println("Tag removed")
 					return
 				}
@@ -149,6 +173,14 @@ var tagRemoveCmd = &cobra.Command{
 
 		if err := svc.RemoveTagFromIssue(cmd.Context(), args[0], args[1]); err != nil {
 			handleError(err)
+		}
+		if quietFlag {
+			fmt.Println(args[0])
+			return
+		}
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(map[string]interface{}{"issue": args[0], "tag": args[1], "removed": true})
+			return
 		}
 		fmt.Println("Tag removed")
 	},

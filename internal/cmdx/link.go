@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/Olyxz16/ytcli/internal/model"
+	"github.com/Olyxz16/ytcli/internal/render"
 )
 
 var (
@@ -32,6 +33,14 @@ var linkCmd = &cobra.Command{
 
 		if err := svc.AddLink(cmd.Context(), args[0], args[1], linkTypeFlag); err != nil {
 			handleError(err)
+		}
+		if quietFlag {
+			fmt.Println(args[0])
+			return
+		}
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(map[string]interface{}{"source": args[0], "target": args[1], "type": linkTypeFlag, "linked": true})
+			return
 		}
 		fmt.Println("Linked successfully")
 	},
@@ -87,6 +96,11 @@ var logCmd = &cobra.Command{
 
 		if quietFlag {
 			fmt.Println(created.ID)
+			return
+		}
+
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(created)
 			return
 		}
 

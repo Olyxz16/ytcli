@@ -66,13 +66,15 @@ var syncCmd = &cobra.Command{
 			if err != nil {
 				handleError(err)
 			}
-			fmt.Printf("Pulled %d issues.\n", pullResult.Pulled)
-			if pullResult.Failed > 0 {
-				for _, e := range pullResult.Errors {
-					fmt.Printf("  pull error: %s\n", e)
+			if getOutputMode() != render.OutputJSON && !quietFlag {
+				fmt.Printf("Pulled %d issues.\n", pullResult.Pulled)
+				if pullResult.Failed > 0 {
+					for _, e := range pullResult.Errors {
+						fmt.Printf("  pull error: %s\n", e)
+					}
 				}
+				fmt.Println()
 			}
-			fmt.Println()
 
 			fmt.Println("Pushing local changes...")
 			result, err = mgr.Push(ctx)
@@ -80,6 +82,15 @@ var syncCmd = &cobra.Command{
 
 		if err != nil {
 			handleError(err)
+		}
+
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(result)
+			return
+		}
+		if quietFlag {
+			fmt.Printf("%d %d %d %d\n", result.Pulled, result.Pushed, result.Conflicts, result.Failed)
+			return
 		}
 
 		fmt.Printf("Pushed %d changes.\n", result.Pushed)
@@ -104,6 +115,26 @@ func showSyncStatus(db *sql.DB) {
 		handleError(err)
 	}
 	defer rows.Close()
+
+	if getOutputMode() == render.OutputJSON {
+		statusMap := make(map[string]int)
+		for rows.Next() {
+			var status string
+			var count int
+			rows.Scan(&status, &count)
+			statusMap[status] = count
+		}
+		pending, failed, completed, _ := store.QueueCount(db)
+		render.JSON(map[string]interface{}{
+			"statuses": statusMap,
+			"queue": map[string]int{
+				"pending":   pending,
+				"failed":    failed,
+				"completed": completed,
+			},
+		})
+		return
+	}
 
 	fmt.Println(render.Header("Sync Status"))
 	for rows.Next() {

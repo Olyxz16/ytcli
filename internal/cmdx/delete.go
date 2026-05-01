@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/Olyxz16/ytcli/internal/config"
 	"github.com/Olyxz16/ytcli/internal/local"
+	"github.com/Olyxz16/ytcli/internal/render"
 	"github.com/Olyxz16/ytcli/internal/store"
 )
 
@@ -25,11 +26,18 @@ var deleteCmd = &cobra.Command{
 				if err == nil {
 					issue, _ := store.GetIssue(db, localID)
 					if issue != nil && issue.RemoteID != nil {
-						// Queue remote delete
 						_ = store.Enqueue(db, "delete", "issue", issue.ID, map[string]interface{}{})
 					}
 					if err := store.DeleteIssue(db, localID); err != nil {
 						handleError(err)
+					}
+					if quietFlag {
+						fmt.Println(args[0])
+						return
+					}
+					if getOutputMode() == render.OutputJSON {
+						render.JSON(map[string]interface{}{"id": args[0], "deleted": true, "local": true})
+						return
 					}
 					fmt.Println("Deleted locally")
 					return
@@ -46,6 +54,14 @@ var deleteCmd = &cobra.Command{
 
 		if err := svc.DeleteIssue(cmd.Context(), args[0]); err != nil {
 			handleError(err)
+		}
+		if quietFlag {
+			fmt.Println(args[0])
+			return
+		}
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(map[string]interface{}{"id": args[0], "deleted": true})
+			return
 		}
 		fmt.Println("Deleted")
 	},

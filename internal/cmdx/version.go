@@ -4,19 +4,29 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/Olyxz16/ytcli/internal/render"
 )
 
 var (
-	// Version is set at build time via ldflags.
 	Version = "dev"
-	// Commit is set at build time via ldflags.
-	Commit = "unknown"
+	Commit  = "unknown"
 )
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
+		if getOutputMode() == render.OutputJSON {
+			render.JSON(map[string]string{
+				"version": Version,
+				"commit":  Commit,
+			})
+			return
+		}
+		if quietFlag {
+			fmt.Println(Version)
+			return
+		}
 		fmt.Printf("ytcli version %s (commit: %s)\n", Version, Commit)
 	},
 }

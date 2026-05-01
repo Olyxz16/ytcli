@@ -169,7 +169,7 @@ var articleDeleteCmd = &cobra.Command{
 
 func init() {
 	articlesCmd.Flags().IntVar(&articlesLimitFlag, "limit", 50, "Max results (0 = all)")
-	articlesCmd.Flags().StringVarP(&articlesQueryFlag, "query", "q", "", "Search query")
+	articlesCmd.Flags().StringVar(&articlesQueryFlag, "query", "", "Search query")
 
 	articleCmd.Flags().BoolVar(&articleCommentsFlag, "comments", false, "Show comments")
 

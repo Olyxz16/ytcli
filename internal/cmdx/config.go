@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/Olyxz16/ytcli/internal/config"
+	"github.com/Olyxz16/ytcli/internal/render"
 )
 
 var configCmd = &cobra.Command{
@@ -177,9 +178,36 @@ var configInstancesCmd = &cobra.Command{
 		if err != nil {
 			handleError(err)
 		}
+		local, _, _ := config.LoadLocal()
+
+		activeInstance := global.DefaultInstance
+		if local != nil && local.Instance != "" {
+			activeInstance = local.Instance
+		}
+
+		if getOutputMode() == render.OutputJSON {
+			type instanceInfo struct {
+				Name     string `json:"name"`
+				URL      string `json:"url"`
+				Active   bool   `json:"active"`
+				Default  bool   `json:"default"`
+			}
+			var instances []instanceInfo
+			for name, inst := range global.Instances {
+				instances = append(instances, instanceInfo{
+					Name:    name,
+					URL:     inst.URL,
+					Active:  name == activeInstance,
+					Default: name == global.DefaultInstance,
+				})
+			}
+			render.JSON(instances)
+			return
+		}
+
 		for name, inst := range global.Instances {
 			marker := " "
-			if name == global.DefaultInstance {
+			if name == activeInstance {
 				marker = "*"
 			}
 			fmt.Printf("%s %s: %s\n", marker, name, inst.URL)

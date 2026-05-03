@@ -21,7 +21,18 @@ func NewService(cfg *config.MergedConfig) (*Service, error) {
 	}
 	token, err := config.GetToken(cfg.Instance)
 	if err != nil {
-		return nil, fmt.Errorf("auth: %w", err)
+		global, _ := config.LoadGlobal()
+		if global != nil {
+			for name, inst := range global.Instances {
+				if config.NormalizeURL(inst.URL) == config.NormalizeURL(cfg.InstanceURL) {
+					token, err = config.GetToken(name)
+					break
+				}
+			}
+		}
+		if err != nil {
+			return nil, fmt.Errorf("auth: %w", err)
+		}
 	}
 	return &Service{
 		client: api.NewClient(cfg.InstanceURL, token),

@@ -35,8 +35,10 @@ type LocalSchema struct {
 // LocalConfig holds the commitable per-directory configuration.
 type LocalConfig struct {
 	Instance     string      `yaml:"instance,omitempty"`
+	InstanceURL  string      `yaml:"instance_url,omitempty"`
 	Project      string      `yaml:"project,omitempty"`
 	DefaultQuery string      `yaml:"default_query,omitempty"`
+	WikiDir      string      `yaml:"wiki_dir,omitempty"`
 	Local        LocalSchema `yaml:"local,omitempty"`
 }
 
@@ -53,6 +55,7 @@ type MergedConfig struct {
 	DefaultQuery string
 	CurrentTask  string
 	OutputFormat string
+	WikiDir      string
 }
 
 // DefaultGlobalConfig returns a default global configuration.
@@ -194,24 +197,25 @@ func SaveLocalPrivate(cfg *LocalPrivateConfig, dir string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// NormalizeURL trims trailing slashes from a URL for comparison.
+func NormalizeURL(u string) string {
+	return strings.TrimSuffix(u, "/")
+}
+
 // Resolve merges global, local, and private configs into a single effective config.
-// The instance must be explicitly set in local config (.ytcli.yml) or via the --instance flag.
-// There is no "default" instance — forgetting to configure results in an error.
+// Priority order: .ytcli.yml (project config) > .ytcli.local.yml (private config) > global config (fallback).
+// The project config is the source of truth for instance connection details.
 func Resolve(global *GlobalConfig, local *LocalConfig, private *LocalPrivateConfig) (*MergedConfig, error) {
 	m := &MergedConfig{
 		OutputFormat: global.OutputFormat,
 	}
 
 	if local != nil {
-		if local.Instance != "" {
-			m.Instance = local.Instance
-		}
-		if local.Project != "" {
-			m.Project = local.Project
-		}
-		if local.DefaultQuery != "" {
-			m.DefaultQuery = local.DefaultQuery
-		}
+		m.Instance = local.Instance
+		m.InstanceURL = strings.TrimSuffix(local.InstanceURL, "/")
+		m.Project = local.Project
+		m.DefaultQuery = local.DefaultQuery
+		m.WikiDir = local.WikiDir
 	}
 
 	if private != nil {
@@ -220,7 +224,7 @@ func Resolve(global *GlobalConfig, local *LocalConfig, private *LocalPrivateConf
 		}
 	}
 
-	if m.Instance != "" {
+	if m.InstanceURL == "" && m.Instance != "" {
 		inst, ok := global.Instances[m.Instance]
 		if !ok {
 			return nil, fmt.Errorf("instance %q not found in global config", m.Instance)

@@ -1,4 +1,5 @@
 instance: ytcli
+instance_url: https://ytcli.youtrack.cloud
 project: YTCLI
 local:
     states:

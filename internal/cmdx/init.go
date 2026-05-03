@@ -81,6 +81,7 @@ var initCmd = &cobra.Command{
 			form := huh.NewForm(huh.NewGroup(fields...))
 			if err := form.Run(); err == nil && !skipInstance && selectedInstance != "" {
 				localCfg.Instance = selectedInstance
+				localCfg.InstanceURL = strings.TrimSuffix(global.Instances[selectedInstance].URL, "/")
 			}
 		}
 

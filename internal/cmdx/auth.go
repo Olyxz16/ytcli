@@ -47,15 +47,19 @@ requires the instance to have a Hub service configured and a client_id.
 			instance = args[0]
 		}
 		if instance == "" {
-			fmt.Fprintln(os.Stderr, "Error: no instance specified. Provide an instance name or bind this project with: ytcli config set instance <name>")
+			fmt.Fprintln(os.Stderr, "Error: no instance specified. Provide an instance name, or configure with: ytcli config set instance_url <url>")
 			os.Exit(1)
 		}
 
 		inst, ok := global.Instances[instance]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Instance %q not found in config.\n", instance)
-			fmt.Fprintln(os.Stderr, "Add it first with: ytcli config set instances.<name>.url <url>")
-			os.Exit(1)
+			if localCfg != nil && localCfg.InstanceURL != "" {
+				inst = config.InstanceConfig{URL: localCfg.InstanceURL}
+			} else {
+				fmt.Fprintf(os.Stderr, "Instance %q not found in config.\n", instance)
+				fmt.Fprintln(os.Stderr, "Add it first with: ytcli config set instances.<name>.url <url>")
+				os.Exit(1)
+			}
 		}
 
 		var token string

@@ -106,22 +106,31 @@ var configSetCmd = &cobra.Command{
 					path = filepath.Dir(path)
 				}
 				switch key {
-case "instance":
-				if _, ok := global.Instances[value]; !ok && len(global.Instances) > 0 {
+			case "instance":
+				if inst, ok := global.Instances[value]; ok {
+					local.Instance = value
+					local.InstanceURL = strings.TrimSuffix(inst.URL, "/")
+				} else if len(global.Instances) > 0 {
 					fmt.Fprintf(os.Stderr, "Warning: instance %q not found in global config. Available instances:\n", value)
 					for name, inst := range global.Instances {
 						fmt.Fprintf(os.Stderr, "  - %s: %s\n", name, inst.URL)
 					}
+					local.Instance = value
+				} else {
+					local.Instance = value
 				}
-				local.Instance = value
-				case "project":
-					local.Project = value
-				case "default_query":
-					local.DefaultQuery = value
-				default:
-					fmt.Fprintf(os.Stderr, "Unknown config key: %s\n", key)
-					os.Exit(1)
-				}
+			case "instance_url":
+				local.InstanceURL = value
+			case "project":
+				local.Project = value
+			case "default_query":
+				local.DefaultQuery = value
+			case "wiki_dir":
+				local.WikiDir = value
+			default:
+				fmt.Fprintf(os.Stderr, "Unknown config key: %s\n", key)
+				os.Exit(1)
+			}
 				if err := config.SaveLocal(local, path); err != nil {
 					handleError(err)
 				}
@@ -157,6 +166,8 @@ var configGetCmd = &cobra.Command{
 			fmt.Println(merged.Project)
 		case "default_query":
 			fmt.Println(merged.DefaultQuery)
+		case "wiki_dir":
+			fmt.Println(merged.WikiDir)
 		case "current_task":
 			fmt.Println(merged.CurrentTask)
 		case "output_format":

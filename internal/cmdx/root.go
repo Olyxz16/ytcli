@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -87,15 +88,15 @@ func buildService() (*service.Service, *config.MergedConfig, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("instance %q not found", merged.Instance)
 		}
-		merged.InstanceURL = inst.URL
+		merged.InstanceURL = strings.TrimSuffix(inst.URL, "/")
 	}
 
 	if merged.InstanceURL == "" {
 		msg := "no YouTrack instance configured"
-		if len(global.Instances) == 0 {
+		if len(global.Instances) == 0 && merged.Instance == "" {
 			msg = "no YouTrack instances configured. Run: ytcli config setup"
 		} else {
-			msg = "no instance bound to this project. Run: ytcli init or ytcli config set instance <name>"
+			msg = "no instance bound to this project. Run: ytcli init, ytcli config set instance <name>, or ytcli config set instance_url <url>"
 		}
 		return nil, nil, fmt.Errorf("%s", msg)
 	}

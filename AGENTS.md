@@ -166,6 +166,22 @@ ytcli sync --status           # Show sync status
 **JSON mode**: `{"Pulled": N, "Pushed": N, "Conflicts": N, "Failed": N, "Errors": [...]}`.
 **JSON mode** (`--status`): `{"statuses": {...}, "queue": {"pending": N, "failed": N, "completed": N}}`.
 
+### Wiki
+
+```bash
+ytcli wiki --pull            # Pull articles from YouTrack to wiki_dir
+ytcli wiki --push            # Push local edits to existing YouTrack articles
+ytcli wiki --status          # Check if local wiki is up to date
+```
+
+Requires `wiki_dir` to be configured: `ytcli config set wiki_dir <path>`.
+
+Articles are stored as markdown files with HTML-comment front matter containing the article ID, summary, and project. Pull is idempotent — files are only overwritten if the remote version is newer. Push only updates existing articles (by `idReadable` in front matter) — it never creates new ones. Use `create-article` to create new articles.
+
+**JSON mode** (`--pull`): `{"pulled": N, "skipped": N, "errors": [...]}`.
+**JSON mode** (`--push`): `{"pushed": N, "skipped": N, "errors": [...]}`.
+**JSON mode** (`--status`): `{"needs_pull": bool, "wiki_dir": "..."}`.
+
 ### Version
 
 ```bash
@@ -215,9 +231,11 @@ Commands accept multiple ID formats:
 3. **Private**: `.ytcli.local.yml` — current task (gitignored)
 
 Key config values:
-- `instance` — binds project to a YouTrack instance
+- `instance` — binds project to a YouTrack instance name
+- `instance_url` — YouTrack instance URL (stored in project config, overrides global lookup)
 - `project` — project short name for queries and issue creation
 - `default_query` — default filter for `ytcli issues`
+- `wiki_dir` — directory for wiki article sync (no default)
 - `local.states` — valid state values
 - `local.priorities` — valid priority values
 - `local.done_states` — states that mark an issue as done

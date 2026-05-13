@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Olyxz16/ytcli/internal/model"
-	"github.com/Olyxz16/ytcli/internal/service"
+	"github.com/Olyxz16/tkt/internal/model"
+	"github.com/Olyxz16/tkt/internal/service"
 )
 
 type PullResult struct {
@@ -70,7 +70,7 @@ func writeArticleFile(dir string, article model.Article) error {
 	sb.WriteString("-->\n\n")
 	content := article.Content
 	if content == "" {
-		content = article.WikifiedContent
+		content = article.Summary
 	}
 	sb.WriteString(content)
 	sb.WriteString("\n")

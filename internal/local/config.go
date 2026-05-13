@@ -3,7 +3,7 @@ package local
 import (
 	"fmt"
 
-	"github.com/Olyxz16/ytcli/internal/config"
+	"github.com/Olyxz16/tkt/internal/config"
 )
 
 // DefaultSchema provides sensible defaults for a local-only project.

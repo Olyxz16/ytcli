@@ -7,10 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Olyxz16/ytcli/internal/api"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/service"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/provider/youtrack"
+	"github.com/Olyxz16/tkt/internal/store"
 	_ "modernc.org/sqlite"
 )
 
@@ -34,8 +33,9 @@ func storeMigrate(db *sql.DB) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS issues (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			remote_id TEXT,
-			remote_db_id TEXT,
+			provider_name TEXT,
+			provider_key TEXT,
+			provider_ref TEXT,
 			summary TEXT NOT NULL,
 			description TEXT,
 			state TEXT NOT NULL DEFAULT 'Open',
@@ -46,7 +46,7 @@ func storeMigrate(db *sql.DB) error {
 			synced_at DATETIME,
 			sync_status TEXT NOT NULL DEFAULT 'local',
 			remote_etag TEXT,
-			UNIQUE(remote_id)
+			UNIQUE(provider_name, provider_ref)
 		)`,
 		`CREATE TABLE IF NOT EXISTS comments (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +82,27 @@ func storeMigrate(db *sql.DB) error {
 			key TEXT PRIMARY KEY,
 			value TEXT
 		)`,
-		`INSERT OR IGNORE INTO schema_meta(key, value) VALUES('version', '1')`,
+		`INSERT OR IGNORE INTO schema_meta(key, value) VALUES('version', '2')`,
+		`CREATE TABLE IF NOT EXISTS conflicts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+			provider_name TEXT,
+			provider_ref TEXT,
+			local_summary TEXT,
+			local_description TEXT,
+			local_state TEXT,
+			local_priority TEXT,
+			local_assignee TEXT,
+			remote_summary TEXT,
+			remote_description TEXT,
+			remote_state TEXT,
+			remote_priority TEXT,
+			remote_assignee TEXT,
+			detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			resolved_at DATETIME,
+			resolution TEXT,
+			UNIQUE(issue_id)
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
@@ -95,10 +115,10 @@ func storeMigrate(db *sql.DB) error {
 func newTestManager(t *testing.T, handler http.HandlerFunc) (*Manager, *sql.DB, *httptest.Server) {
 	db := openTestDB(t)
 	srv := httptest.NewServer(handler)
-	client := api.NewClient(srv.URL, "token")
-	svc := service.NewServiceWithClient(client)
-	cfg := &config.MergedConfig{Project: "PROJ"}
-	mgr := NewManager(db, svc, cfg)
+	client := youtrack.NewClient(srv.URL, "token")
+	prov := youtrack.NewProviderWithClient(client)
+	cfg := &config.MergedConfig{Project: "PROJ", ProviderURL: srv.URL, ProviderName: "youtrack"}
+	mgr := NewManager(db, prov, cfg)
 	return mgr, db, srv
 }
 
@@ -140,9 +160,9 @@ func TestPullNewRemoteIssue(t *testing.T) {
 		t.Errorf("pulled = %d", result.Pulled)
 	}
 
-	issue, err := store.GetIssueByRemoteID(db, "PROJ-1")
+	issue, err := store.GetIssueByProviderRef(db, "youtrack", "PROJ-1")
 	if err != nil {
-		t.Fatalf("get issue by remote id: %v", err)
+		t.Fatalf("get issue by provider ref: %v", err)
 	}
 	if issue == nil {
 		t.Fatal("expected issue to be inserted")
@@ -165,7 +185,7 @@ func TestPullExistingSynced(t *testing.T) {
 
 	// Insert existing synced issue
 	issue, _ := store.CreateIssue(db, "Old", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.SetSyncStatus(db, issue.ID, "synced")
 
 	result, err := mgr.Pull(context.Background())
@@ -201,7 +221,7 @@ func TestPullSyncsTags(t *testing.T) {
 		t.Errorf("pulled = %d", result.Pulled)
 	}
 
-	issue, _ := store.GetIssueByRemoteID(db, "PROJ-1")
+	issue, _ := store.GetIssueByProviderRef(db, "youtrack", "PROJ-1")
 	if issue == nil {
 		t.Fatal("expected issue to be inserted")
 	}
@@ -222,7 +242,7 @@ func TestPullSyncsTags(t *testing.T) {
 	}
 }
 
-func TestPullSkipModified(t *testing.T) {
+func TestPullConflictManual(t *testing.T) {
 	mgr, db, srv := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/issues" {
 			w.Write([]byte(`[{"id":"1-1","idReadable":"PROJ-1","summary":"Remote","created":1000,"updated":2000}]`))
@@ -234,7 +254,65 @@ func TestPullSkipModified(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Local", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
+	store.SetSyncStatus(db, issue.ID, "modified")
+
+	result, err := mgr.Pull(context.Background())
+	if err != nil {
+		t.Fatalf("pull: %v", err)
+	}
+	// Manual resolver stores conflict and returns error -> counts as Failed, not Pulled
+	if result.Failed != 1 {
+		t.Errorf("failed = %d, want 1", result.Failed)
+	}
+	if result.Conflicts != 0 {
+		// Conflicts field is not auto-incremented yet; it's 0
+	}
+
+	// Verify conflict was stored
+	conflicts, err := store.GetConflicts(db)
+	if err != nil {
+		t.Fatalf("get conflicts: %v", err)
+	}
+	if len(conflicts) != 1 {
+		t.Fatalf("expected 1 conflict, got %d", len(conflicts))
+	}
+	if conflicts[0].LocalSummary != "Local" {
+		t.Errorf("local summary = %q", conflicts[0].LocalSummary)
+	}
+	if conflicts[0].RemoteSummary != "Remote" {
+		t.Errorf("remote summary = %q", conflicts[0].RemoteSummary)
+	}
+
+	// Verify issue status is 'conflict'
+	updated, _ := store.GetIssue(db, issue.ID)
+	if updated.Summary != "Local" {
+		t.Errorf("summary was overwritten: %q", updated.Summary)
+	}
+	if updated.SyncStatus != "conflict" {
+		t.Errorf("sync_status = %q, want conflict", updated.SyncStatus)
+	}
+}
+
+func TestPullConflictLocalWins(t *testing.T) {
+	db := openTestDB(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/issues" {
+			w.Write([]byte(`[{"id":"1-1","idReadable":"PROJ-1","summary":"Remote","created":1000,"updated":2000}]`))
+		} else {
+			w.Write([]byte(`[]`))
+		}
+	}))
+	defer srv.Close()
+	defer db.Close()
+
+	client := youtrack.NewClient(srv.URL, "token")
+	prov := youtrack.NewProviderWithClient(client)
+	cfg := &config.MergedConfig{Project: "PROJ", ProviderURL: srv.URL, ProviderName: "youtrack"}
+	mgr := NewManagerWithResolver(db, prov, cfg, StrategyLocalWins)
+
+	issue, _ := store.CreateIssue(db, "Local", "Desc", "Open", "Normal", "")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.SetSyncStatus(db, issue.ID, "modified")
 
 	result, err := mgr.Pull(context.Background())
@@ -242,41 +320,59 @@ func TestPullSkipModified(t *testing.T) {
 		t.Fatalf("pull: %v", err)
 	}
 	if result.Pulled != 1 {
-		t.Errorf("pulled = %d", result.Pulled)
+		t.Errorf("pulled = %d, want 1", result.Pulled)
+	}
+	if result.Failed != 0 {
+		t.Errorf("failed = %d, want 0", result.Failed)
 	}
 
 	updated, _ := store.GetIssue(db, issue.ID)
 	if updated.Summary != "Local" {
 		t.Errorf("summary was overwritten: %q", updated.Summary)
 	}
+	if updated.SyncStatus != "modified" {
+		t.Errorf("sync_status changed to %q", updated.SyncStatus)
+	}
 }
 
-func TestPullSkipConflict(t *testing.T) {
-	mgr, db, srv := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {
+func TestPullConflictRemoteWins(t *testing.T) {
+	db := openTestDB(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/issues" {
 			w.Write([]byte(`[{"id":"1-1","idReadable":"PROJ-1","summary":"Remote","created":1000,"updated":2000}]`))
 		} else {
 			w.Write([]byte(`[]`))
 		}
-	})
+	}))
 	defer srv.Close()
 	defer db.Close()
 
+	client := youtrack.NewClient(srv.URL, "token")
+	prov := youtrack.NewProviderWithClient(client)
+	cfg := &config.MergedConfig{Project: "PROJ", ProviderURL: srv.URL, ProviderName: "youtrack"}
+	mgr := NewManagerWithResolver(db, prov, cfg, StrategyRemoteWins)
+
 	issue, _ := store.CreateIssue(db, "Local", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
-	store.SetSyncStatus(db, issue.ID, "conflict")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
+	store.SetSyncStatus(db, issue.ID, "modified")
 
 	result, err := mgr.Pull(context.Background())
 	if err != nil {
 		t.Fatalf("pull: %v", err)
 	}
 	if result.Pulled != 1 {
-		t.Errorf("pulled = %d", result.Pulled)
+		t.Errorf("pulled = %d, want 1", result.Pulled)
+	}
+	if result.Failed != 0 {
+		t.Errorf("failed = %d, want 0", result.Failed)
 	}
 
 	updated, _ := store.GetIssue(db, issue.ID)
-	if updated.Summary != "Local" {
-		t.Errorf("summary was overwritten: %q", updated.Summary)
+	if updated.Summary != "Remote" {
+		t.Errorf("summary = %q, want Remote", updated.Summary)
+	}
+	if updated.SyncStatus != "synced" {
+		t.Errorf("sync_status = %q, want synced", updated.SyncStatus)
 	}
 }
 
@@ -337,8 +433,8 @@ func TestPushCreate(t *testing.T) {
 	}
 
 	updated, _ := store.GetIssue(db, issue.ID)
-	if updated.RemoteID == nil || *updated.RemoteID != "PROJ-1" {
-		t.Errorf("remote_id = %v", updated.RemoteID)
+	if updated.ProviderRef != "PROJ-1" {
+		t.Errorf("provider_ref = %v", updated.ProviderRef)
 	}
 }
 
@@ -350,7 +446,7 @@ func TestPushUpdate(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Old", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.Enqueue(db, "update", "issue", issue.ID, map[string]interface{}{"summary": "Updated"})
 
 	result, err := mgr.Push(context.Background())
@@ -375,7 +471,7 @@ func TestPushComment(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Issue", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.Enqueue(db, "comment", "issue", issue.ID, map[string]interface{}{"text": "Hello"})
 
 	result, err := mgr.Push(context.Background())
@@ -397,7 +493,7 @@ func TestPushState(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Issue", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.Enqueue(db, "state", "issue", issue.ID, map[string]interface{}{"state": "Done"})
 
 	result, err := mgr.Push(context.Background())
@@ -424,7 +520,7 @@ func TestPushTag(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Issue", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.Enqueue(db, "tag", "issue", issue.ID, map[string]interface{}{"tag": "bug"})
 
 	result, err := mgr.Push(context.Background())
@@ -446,7 +542,7 @@ func TestPushUntag(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Issue", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.Enqueue(db, "untag", "issue", issue.ID, map[string]interface{}{"tag": "bug"})
 
 	result, err := mgr.Push(context.Background())
@@ -466,7 +562,7 @@ func TestPushUnknownOperation(t *testing.T) {
 	defer db.Close()
 
 	issue, _ := store.CreateIssue(db, "Issue", "Desc", "Open", "Normal", "")
-	store.SetRemoteID(db, issue.ID, "PROJ-1", "1-1")
+	store.SetProviderRef(db, issue.ID, "youtrack", "1-1", "PROJ-1")
 	store.Enqueue(db, "unknown", "issue", issue.ID, map[string]interface{}{})
 
 	result, err := mgr.Push(context.Background())

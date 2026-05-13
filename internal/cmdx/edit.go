@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var (
@@ -100,7 +100,7 @@ var editCmd = &cobra.Command{
 		}
 
 		if quietFlag {
-			fmt.Println(updated.IDReadable)
+			fmt.Println(updated.ID)
 			return
 		}
 

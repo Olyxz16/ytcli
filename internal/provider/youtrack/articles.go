@@ -1,4 +1,4 @@
-package api
+package youtrack
 
 import (
 	"context"
@@ -6,9 +6,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/Olyxz16/ytcli/internal/model"
+	"github.com/Olyxz16/tkt/internal/model"
 )
 
+// ListArticles searches for articles matching the query.
 func (c *Client) ListArticles(ctx context.Context, query string, top, skip int) ([]model.Article, error) {
 	q := url.Values{}
 	q.Set("fields", ArticleList().String())
@@ -22,13 +23,14 @@ func (c *Client) ListArticles(ctx context.Context, query string, top, skip int) 
 		q.Set("$skip", strconv.Itoa(skip))
 	}
 
-	var articles []model.Article
-	if err := c.doJSON(ctx, "GET", "/api/articles", q, nil, &articles); err != nil {
+	var ytArticles []ytArticle
+	if err := c.doJSON(ctx, "GET", "/api/articles", q, nil, &ytArticles); err != nil {
 		return nil, err
 	}
-	return articles, nil
+	return toArticles(ytArticles), nil
 }
 
+// GetArticle retrieves a single article by ID.
 func (c *Client) GetArticle(ctx context.Context, id string, withComments bool) (*model.Article, error) {
 	q := url.Values{}
 	if withComments {
@@ -37,13 +39,14 @@ func (c *Client) GetArticle(ctx context.Context, id string, withComments bool) (
 		q.Set("fields", ArticleDetail().String())
 	}
 
-	var article model.Article
-	if err := c.doJSON(ctx, "GET", fmt.Sprintf("/api/articles/%s", url.PathEscape(id)), q, nil, &article); err != nil {
+	var ytArticle ytArticle
+	if err := c.doJSON(ctx, "GET", fmt.Sprintf("/api/articles/%s", url.PathEscape(id)), q, nil, &ytArticle); err != nil {
 		return nil, err
 	}
-	return &article, nil
+	return toArticle(&ytArticle), nil
 }
 
+// CreateArticle creates a new article.
 func (c *Client) CreateArticle(ctx context.Context, article model.Article) (*model.Article, error) {
 	q := url.Values{}
 	q.Set("fields", ArticleDetail().String())
@@ -59,24 +62,26 @@ func (c *Client) CreateArticle(ctx context.Context, article model.Article) (*mod
 		payload["parentArticle"] = map[string]string{"id": article.ParentArticle.ID}
 	}
 
-	var created model.Article
-	if err := c.doJSON(ctx, "POST", "/api/articles", q, payload, &created); err != nil {
+	var ytArticle ytArticle
+	if err := c.doJSON(ctx, "POST", "/api/articles", q, payload, &ytArticle); err != nil {
 		return nil, err
 	}
-	return &created, nil
+	return toArticle(&ytArticle), nil
 }
 
+// UpdateArticle updates an article.
 func (c *Client) UpdateArticle(ctx context.Context, id string, updates map[string]interface{}) (*model.Article, error) {
 	q := url.Values{}
 	q.Set("fields", ArticleDetail().String())
 
-	var updated model.Article
-	if err := c.doJSON(ctx, "POST", fmt.Sprintf("/api/articles/%s", url.PathEscape(id)), q, updates, &updated); err != nil {
+	var ytArticle ytArticle
+	if err := c.doJSON(ctx, "POST", fmt.Sprintf("/api/articles/%s", url.PathEscape(id)), q, updates, &ytArticle); err != nil {
 		return nil, err
 	}
-	return &updated, nil
+	return toArticle(&ytArticle), nil
 }
 
+// DeleteArticle deletes an article.
 func (c *Client) DeleteArticle(ctx context.Context, id string) error {
 	_, err := c.do(ctx, "DELETE", fmt.Sprintf("/api/articles/%s", url.PathEscape(id)), nil, nil)
 	return err

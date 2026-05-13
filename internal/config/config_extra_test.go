@@ -5,40 +5,34 @@ import (
 )
 
 func TestResolveDefaults(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work": {URL: "https://work.youtrack.cloud"},
-		},
-		OutputFormat: "table",
-	}
-	merged, err := Resolve(global, nil, nil)
+	merged, err := Resolve(nil, nil)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if merged.Instance != "" {
-		t.Errorf("expected empty instance (no default), got %q", merged.Instance)
+	if merged.ProviderName != "" {
+		t.Errorf("expected empty provider name, got %q", merged.ProviderName)
 	}
-	if merged.InstanceURL != "" {
-		t.Errorf("expected empty URL, got %q", merged.InstanceURL)
+	if merged.ProviderURL != "" {
+		t.Errorf("expected empty URL, got %q", merged.ProviderURL)
 	}
 }
 
-func TestResolveLocalOverrides(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work":     {URL: "https://work.youtrack.cloud"},
-			"personal": {URL: "https://personal.myjetbrains.com/youtrack"},
+func TestResolveLocalProvider(t *testing.T) {
+	local := &LocalConfig{
+		Provider: ProviderConfig{
+			Name: "youtrack",
+			URL:  "https://work.youtrack.cloud",
 		},
+		Project: "PROJ",
 	}
-	local := &LocalConfig{Instance: "personal", Project: "PROJ"}
 	private := &LocalPrivateConfig{CurrentTask: "PROJ-1"}
 
-	merged, err := Resolve(global, local, private)
+	merged, err := Resolve(local, private)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if merged.Instance != "personal" {
-		t.Errorf("instance = %q", merged.Instance)
+	if merged.ProviderName != "youtrack" {
+		t.Errorf("provider name = %q", merged.ProviderName)
 	}
 	if merged.Project != "PROJ" {
 		t.Errorf("project = %q", merged.Project)
@@ -48,53 +42,36 @@ func TestResolveLocalOverrides(t *testing.T) {
 	}
 }
 
-func TestResolveInstanceNotInGlobal(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work": {URL: "https://work.youtrack.cloud"},
-		},
-	}
-	local := &LocalConfig{Instance: "missing"}
-	_, err := Resolve(global, local, nil)
-	if err == nil {
-		t.Fatal("expected error for missing instance")
-	}
-}
-
 func TestResolveTrimsTrailingSlash(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work": {URL: "https://work.youtrack.cloud/"},
+	local := &LocalConfig{
+		Provider: ProviderConfig{
+			Name: "work",
+			URL:  "https://work.youtrack.cloud/",
 		},
 	}
-	local := &LocalConfig{Instance: "work"}
-	merged, err := Resolve(global, local, nil)
+	merged, err := Resolve(local, nil)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if merged.InstanceURL != "https://work.youtrack.cloud" {
-		t.Errorf("url = %q", merged.InstanceURL)
+	if merged.ProviderURL != "https://work.youtrack.cloud" {
+		t.Errorf("url = %q", merged.ProviderURL)
 	}
 }
 
-func TestResolveEmptyConfigs(t *testing.T) {
-	global := &GlobalConfig{
-		Instances:    map[string]InstanceConfig{},
-		OutputFormat: "table",
+func TestResolveBackwardsCompat(t *testing.T) {
+	local := &LocalConfig{
+		Instance:    "work",
+		InstanceURL: "https://work.youtrack.cloud",
 	}
-	merged, err := Resolve(global, &LocalConfig{}, &LocalPrivateConfig{})
+	merged, err := Resolve(local, nil)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if merged.InstanceURL != "" {
-		t.Errorf("url = %q, want empty", merged.InstanceURL)
+	if merged.ProviderName != "work" {
+		t.Errorf("provider name = %q, want work", merged.ProviderName)
 	}
-}
-
-func TestConfigPath(t *testing.T) {
-	path := ConfigPath()
-	if path == "" {
-		t.Error("expected non-empty path")
+	if merged.ProviderURL != "https://work.youtrack.cloud" {
+		t.Errorf("url = %q", merged.ProviderURL)
 	}
 }
 

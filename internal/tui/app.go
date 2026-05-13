@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/Olyxz16/ytcli/internal/service"
+	"github.com/Olyxz16/tkt/internal/service"
 )
 
 // App is the future TUI application.

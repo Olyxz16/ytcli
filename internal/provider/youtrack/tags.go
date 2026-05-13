@@ -1,11 +1,11 @@
-package api
+package youtrack
 
 import (
 	"context"
 	"fmt"
 	"net/url"
 
-	"github.com/Olyxz16/ytcli/internal/model"
+	"github.com/Olyxz16/tkt/internal/model"
 )
 
 // ListTags returns all tags accessible to the current user.
@@ -13,9 +13,14 @@ func (c *Client) ListTags(ctx context.Context) ([]model.Tag, error) {
 	q := url.Values{}
 	q.Set("fields", "id,name")
 
-	var tags []model.Tag
-	if err := c.doJSON(ctx, "GET", "/api/tags", q, nil, &tags); err != nil {
+	var ytTags []ytTag
+	if err := c.doJSON(ctx, "GET", "/api/tags", q, nil, &ytTags); err != nil {
 		return nil, err
+	}
+
+	tags := make([]model.Tag, len(ytTags))
+	for i, t := range ytTags {
+		tags[i] = model.Tag{ID: t.ID, Name: t.Name}
 	}
 	return tags, nil
 }

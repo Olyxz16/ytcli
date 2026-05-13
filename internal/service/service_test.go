@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Olyxz16/ytcli/internal/api"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/model"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/model"
+	"github.com/Olyxz16/tkt/internal/provider/youtrack"
 )
 
 func newTestService(handler http.HandlerFunc) (*Service, *httptest.Server) {
 	srv := httptest.NewServer(handler)
-	client := api.NewClient(srv.URL, "test-token")
+	client := youtrack.NewClient(srv.URL, "test-token")
 	return NewServiceWithClient(client), srv
 }
 
@@ -26,7 +26,7 @@ func TestNewServiceMissingURL(t *testing.T) {
 }
 
 func TestNewServiceWithClient(t *testing.T) {
-	client := api.NewClient("http://localhost", "token")
+	client := youtrack.NewClient("http://localhost", "token")
 	svc := NewServiceWithClient(client)
 	if svc == nil {
 		t.Fatal("expected service")
@@ -143,8 +143,8 @@ func TestCreateIssueResolveProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if issue.IDReadable != "PROJ-1" {
-		t.Errorf("idReadable = %q", issue.IDReadable)
+	if issue.ID != "PROJ-1" {
+		t.Errorf("id = %q", issue.ID)
 	}
 }
 

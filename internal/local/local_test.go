@@ -3,7 +3,7 @@ package local
 import (
 	"testing"
 
-	"github.com/Olyxz16/ytcli/internal/config"
+	"github.com/Olyxz16/tkt/internal/config"
 )
 
 func TestGetSchemaDefault(t *testing.T) {

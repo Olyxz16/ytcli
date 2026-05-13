@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var deleteCmd = &cobra.Command{
@@ -25,7 +25,7 @@ var deleteCmd = &cobra.Command{
 				localID, err := local.ResolveID(db, args[0], localCfg)
 				if err == nil {
 					issue, _ := store.GetIssue(db, localID)
-					if issue != nil && issue.RemoteID != nil {
+					if issue != nil && issue.ProviderRef != "" {
 						_ = store.Enqueue(db, "delete", "issue", issue.ID, map[string]interface{}{})
 					}
 					if err := store.DeleteIssue(db, localID); err != nil {

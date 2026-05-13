@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/tui"
+	"github.com/Olyxz16/tkt/internal/tui"
 )
 
 var tuiCmd = &cobra.Command{

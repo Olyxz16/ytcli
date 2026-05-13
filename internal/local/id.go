@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 // ResolveID parses a user-provided ID string and returns the local database row ID.
-// Supports: "#1", "1", "PROJ-42" (if project prefix matches and remote_id exists locally)
+// Supports: "#1", "1" (local), or provider refs like "PROJ-42"
 func ResolveID(db *sql.DB, input string, localConfig *config.LocalConfig) (int64, error) {
 	input = strings.TrimSpace(input)
 	input = strings.TrimPrefix(input, "#")
@@ -28,9 +28,12 @@ func ResolveID(db *sql.DB, input string, localConfig *config.LocalConfig) (int64
 		return issue.ID, nil
 	}
 
-	// Project-prefixed → look up by remote_id
-	// e.g. "PROJ-42" → search store.issues WHERE remote_id = "PROJ-42"
-	issue, err := store.GetIssueByRemoteID(db, input)
+	// Provider-prefixed → look up by provider_ref
+	providerName := ""
+	if localConfig != nil && localConfig.Provider.Name != "" {
+		providerName = localConfig.Provider.Name
+	}
+	issue, err := store.GetIssueByProviderRef(db, providerName, input)
 	if err != nil {
 		return 0, err
 	}
@@ -42,10 +45,10 @@ func ResolveID(db *sql.DB, input string, localConfig *config.LocalConfig) (int64
 }
 
 // FormatID returns the best display ID for an issue.
-// Prefers remote_id if available, otherwise returns local #id.
+// Prefers provider_ref if available, otherwise returns local #id.
 func FormatID(issue *store.LocalIssue) string {
-	if issue.RemoteID != nil && *issue.RemoteID != "" {
-		return *issue.RemoteID
+	if issue.ProviderRef != "" {
+		return issue.ProviderRef
 	}
 	return fmt.Sprintf("#%d", issue.ID)
 }

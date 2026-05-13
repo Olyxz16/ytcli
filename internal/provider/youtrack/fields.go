@@ -1,4 +1,4 @@
-package api
+package youtrack
 
 import (
 	"strings"
@@ -40,7 +40,6 @@ func IssueList() *Fields {
 		"created",
 		"updated",
 		"resolved",
-		"commentsCount",
 		"reporter(id,login,name,fullName)",
 		"project(id,name,shortName)",
 		"customFields(id,name,value(id,name,login,fullName,presentation,minutes))",
@@ -55,16 +54,13 @@ func IssueDetail() *Fields {
 		"idReadable",
 		"summary",
 		"description",
-		"wikifiedDescription",
 		"created",
 		"updated",
 		"resolved",
 		"reporter(id,login,name,fullName)",
-		"updater(id,login,name,fullName)",
 		"project(id,name,shortName)",
 		"customFields(id,name,value(id,name,login,fullName,presentation,minutes))",
 		"tags(id,name)",
-		"votes",
 	)
 }
 
@@ -103,13 +99,11 @@ func ArticleDetail() *Fields {
 		"idReadable",
 		"summary",
 		"content",
-		"wikifiedContent",
 		"created",
 		"updated",
 		"reporter(id,login,name,fullName)",
 		"project(id,name,shortName)",
 		"tags(id,name)",
-		"visibility(id,$type)",
 		"ordinal",
 		"commentsCount",
 		"parentArticle(id,idReadable,summary)",

@@ -9,18 +9,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// InstanceConfig holds the configuration for a single YouTrack instance.
-type InstanceConfig struct {
-	URL      string `yaml:"url"`
-	HubURL   string `yaml:"hub_url,omitempty"`
-	ClientID string `yaml:"client_id,omitempty"`
-	Scope    string `yaml:"scope,omitempty"`
-}
-
-// GlobalConfig holds the user's global configuration.
-type GlobalConfig struct {
-	Instances    map[string]InstanceConfig `yaml:"instances"`
-	OutputFormat string                    `yaml:"output_format"`
+// ProviderConfig holds the configuration for a remote provider.
+type ProviderConfig struct {
+	Name string `yaml:"name"`
+	URL  string `yaml:"url"`
 }
 
 // LocalSchema defines states, priorities, and other schema for local issues.
@@ -34,12 +26,13 @@ type LocalSchema struct {
 
 // LocalConfig holds the commitable per-directory configuration.
 type LocalConfig struct {
-	Instance     string      `yaml:"instance,omitempty"`
-	InstanceURL  string      `yaml:"instance_url,omitempty"`
-	Project      string      `yaml:"project,omitempty"`
-	DefaultQuery string      `yaml:"default_query,omitempty"`
-	WikiDir      string      `yaml:"wiki_dir,omitempty"`
-	Local        LocalSchema `yaml:"local,omitempty"`
+	Provider     ProviderConfig `yaml:"provider,omitempty"`
+	Instance     string         `yaml:"instance,omitempty"`
+	InstanceURL  string         `yaml:"instance_url,omitempty"`
+	Project      string         `yaml:"project,omitempty"`
+	DefaultQuery string         `yaml:"default_query,omitempty"`
+	WikiDir      string         `yaml:"wiki_dir,omitempty"`
+	Local        LocalSchema    `yaml:"local,omitempty"`
 }
 
 // LocalPrivateConfig holds the gitignored per-directory configuration.
@@ -49,8 +42,8 @@ type LocalPrivateConfig struct {
 
 // MergedConfig is the effective configuration after resolution.
 type MergedConfig struct {
-	Instance     string
-	InstanceURL  string
+	ProviderName string
+	ProviderURL  string
 	Project      string
 	DefaultQuery string
 	CurrentTask  string
@@ -58,66 +51,13 @@ type MergedConfig struct {
 	WikiDir      string
 }
 
-// DefaultGlobalConfig returns a default global configuration.
-func DefaultGlobalConfig() *GlobalConfig {
-	return &GlobalConfig{
-		Instances:       make(map[string]InstanceConfig),
-		OutputFormat:    "table",
-	}
-}
-
-// ConfigPath returns the path to the global config file.
-func ConfigPath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = os.Getenv("HOME")
-	}
-	return filepath.Join(dir, "ytcli", "config.yml")
-}
-
-// CredentialsPath returns the fallback credentials file path.
+// CredentialsPath returns the credentials file path.
 func CredentialsPath() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = os.Getenv("HOME")
 	}
-	return filepath.Join(dir, "ytcli", "credentials.yml")
-}
-
-// LoadGlobal loads the global configuration from disk.
-func LoadGlobal() (*GlobalConfig, error) {
-	path := ConfigPath()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return DefaultGlobalConfig(), nil
-		}
-		return nil, err
-	}
-	var cfg GlobalConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse global config: %w", err)
-	}
-	if cfg.Instances == nil {
-		cfg.Instances = make(map[string]InstanceConfig)
-	}
-	if cfg.OutputFormat == "" {
-		cfg.OutputFormat = "table"
-	}
-	return &cfg, nil
-}
-
-// SaveGlobal persists the global configuration to disk.
-func SaveGlobal(cfg *GlobalConfig) error {
-	path := ConfigPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
+	return filepath.Join(dir, "tkt", "credentials.yml")
 }
 
 // findLocalConfig searches for local config files starting at dir and walking up.
@@ -141,7 +81,7 @@ func LoadLocal() (*LocalConfig, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	path, err := findLocalConfig(wd, ".ytcli.yml")
+	path, err := findLocalConfig(wd, ".tktrc.yml")
 	if err != nil {
 		return &LocalConfig{}, "", nil
 	}
@@ -153,6 +93,10 @@ func LoadLocal() (*LocalConfig, string, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, "", fmt.Errorf("parse local config: %w", err)
 	}
+	// Backwards compatibility: instance_url maps to provider.url
+	if cfg.Provider.URL == "" && cfg.InstanceURL != "" {
+		cfg.Provider.URL = cfg.InstanceURL
+	}
 	return &cfg, path, nil
 }
 
@@ -162,7 +106,7 @@ func LoadLocalPrivate() (*LocalPrivateConfig, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	path, err := findLocalConfig(wd, ".ytcli.local.yml")
+	path, err := findLocalConfig(wd, ".tkt.local.yml")
 	if err != nil {
 		return &LocalPrivateConfig{}, "", nil
 	}
@@ -179,7 +123,7 @@ func LoadLocalPrivate() (*LocalPrivateConfig, string, error) {
 
 // SaveLocal persists the commitable local config.
 func SaveLocal(cfg *LocalConfig, dir string) error {
-	path := filepath.Join(dir, ".ytcli.yml")
+	path := filepath.Join(dir, ".tktrc.yml")
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
@@ -189,7 +133,7 @@ func SaveLocal(cfg *LocalConfig, dir string) error {
 
 // SaveLocalPrivate persists the gitignored local config.
 func SaveLocalPrivate(cfg *LocalPrivateConfig, dir string) error {
-	path := filepath.Join(dir, ".ytcli.local.yml")
+	path := filepath.Join(dir, ".tkt.local.yml")
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
@@ -202,34 +146,32 @@ func NormalizeURL(u string) string {
 	return strings.TrimSuffix(u, "/")
 }
 
-// Resolve merges global, local, and private configs into a single effective config.
-// Priority order: .ytcli.yml (project config) > .ytcli.local.yml (private config) > global config (fallback).
-// The project config is the source of truth for instance connection details.
-func Resolve(global *GlobalConfig, local *LocalConfig, private *LocalPrivateConfig) (*MergedConfig, error) {
+// Resolve merges local and private configs into a single effective config.
+// The project config is the source of truth for provider connection details.
+func Resolve(local *LocalConfig, private *LocalPrivateConfig) (*MergedConfig, error) {
 	m := &MergedConfig{
-		OutputFormat: global.OutputFormat,
+		OutputFormat: "table",
 	}
 
 	if local != nil {
-		m.Instance = local.Instance
-		m.InstanceURL = strings.TrimSuffix(local.InstanceURL, "/")
+		m.ProviderName = local.Provider.Name
+		m.ProviderURL = strings.TrimSuffix(local.Provider.URL, "/")
 		m.Project = local.Project
 		m.DefaultQuery = local.DefaultQuery
 		m.WikiDir = local.WikiDir
+		// Backwards compatibility
+		if m.ProviderURL == "" && local.InstanceURL != "" {
+			m.ProviderURL = strings.TrimSuffix(local.InstanceURL, "/")
+		}
+		if m.ProviderName == "" && local.Instance != "" {
+			m.ProviderName = local.Instance
+		}
 	}
 
 	if private != nil {
 		if private.CurrentTask != "" {
 			m.CurrentTask = private.CurrentTask
 		}
-	}
-
-	if m.InstanceURL == "" && m.Instance != "" {
-		inst, ok := global.Instances[m.Instance]
-		if !ok {
-			return nil, fmt.Errorf("instance %q not found in global config", m.Instance)
-		}
-		m.InstanceURL = strings.TrimSuffix(inst.URL, "/")
 	}
 
 	return m, nil

@@ -10,21 +10,22 @@ import (
 
 // LocalIssue represents an issue in the local SQLite database.
 type LocalIssue struct {
-	ID          int64      `json:"id"`
-	RemoteID    *string    `json:"remote_id,omitempty"`
-	RemoteDBID  *string    `json:"remote_db_id,omitempty"`
-	Summary     string     `json:"summary"`
-	Description string     `json:"description"`
-	State       string     `json:"state"`
-	Priority    string     `json:"priority"`
-	Assignee    *string    `json:"assignee,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	SyncedAt    *time.Time `json:"synced_at,omitempty"`
-	SyncStatus  string     `json:"sync_status"`
-	RemoteETag  *string    `json:"remote_etag,omitempty"`
-	Tags        []string   `json:"tags"`
-	Comments    int        `json:"comments"`
+	ID           int64      `json:"id"`
+	ProviderName string     `json:"provider_name,omitempty"`
+	ProviderKey  string     `json:"provider_key,omitempty"`
+	ProviderRef  string     `json:"provider_ref,omitempty"`
+	Summary      string     `json:"summary"`
+	Description  string     `json:"description"`
+	State        string     `json:"state"`
+	Priority     string     `json:"priority"`
+	Assignee     *string    `json:"assignee,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	SyncedAt     *time.Time `json:"synced_at,omitempty"`
+	SyncStatus   string     `json:"sync_status"`
+	RemoteETag   *string    `json:"remote_etag,omitempty"`
+	Tags         []string   `json:"tags"`
+	Comments     int        `json:"comments"`
 }
 
 // CreateIssue inserts a new local issue.
@@ -51,18 +52,18 @@ func CreateIssue(db *sql.DB, summary, description, state, priority, assignee str
 // GetIssue retrieves an issue by its local ID.
 func GetIssue(db *sql.DB, id int64) (*LocalIssue, error) {
 	row := db.QueryRow(`
-		SELECT id, remote_id, remote_db_id, summary, description, state, priority, assignee,
+		SELECT id, provider_name, provider_key, provider_ref, summary, description, state, priority, assignee,
 		       created_at, updated_at, synced_at, sync_status, remote_etag
 		FROM issues WHERE id = ?`, id)
 	return scanIssue(row)
 }
 
-// GetIssueByRemoteID retrieves an issue by its YouTrack remote ID.
-func GetIssueByRemoteID(db *sql.DB, remoteID string) (*LocalIssue, error) {
+// GetIssueByProviderRef retrieves an issue by its provider reference ID.
+func GetIssueByProviderRef(db *sql.DB, providerName, providerRef string) (*LocalIssue, error) {
 	row := db.QueryRow(`
-		SELECT id, remote_id, remote_db_id, summary, description, state, priority, assignee,
+		SELECT id, provider_name, provider_key, provider_ref, summary, description, state, priority, assignee,
 		       created_at, updated_at, synced_at, sync_status, remote_etag
-		FROM issues WHERE remote_id = ?`, remoteID)
+		FROM issues WHERE provider_name = ? AND provider_ref = ?`, providerName, providerRef)
 	return scanIssue(row)
 }
 
@@ -105,7 +106,7 @@ func ListIssues(db *sql.DB, query string, limit int) ([]LocalIssue, error) {
 		// Use FTS5 for text search
 		ftsQuery := strings.Join(strings.Fields(query), " OR ")
 		rows, err = db.Query(`
-			SELECT i.id, i.remote_id, i.remote_db_id, i.summary, i.description, i.state, i.priority, i.assignee,
+			SELECT i.id, i.provider_name, i.provider_key, i.provider_ref, i.summary, i.description, i.state, i.priority, i.assignee,
 			       i.created_at, i.updated_at, i.synced_at, i.sync_status, i.remote_etag
 			FROM issues i
 			JOIN issues_fts fts ON i.id = fts.rowid
@@ -114,7 +115,7 @@ func ListIssues(db *sql.DB, query string, limit int) ([]LocalIssue, error) {
 			LIMIT ?`, ftsQuery, limit)
 	} else {
 		rows, err = db.Query(`
-			SELECT id, remote_id, remote_db_id, summary, description, state, priority, assignee,
+			SELECT id, provider_name, provider_key, provider_ref, summary, description, state, priority, assignee,
 			       created_at, updated_at, synced_at, sync_status, remote_etag
 			FROM issues
 			ORDER BY updated_at DESC
@@ -150,11 +151,11 @@ func CountIssues(db *sql.DB) (int, error) {
 	return count, err
 }
 
-// SetRemoteID maps a local issue to a remote YouTrack ID after sync.
-func SetRemoteID(db *sql.DB, localID int64, remoteID, remoteDBID string) error {
+// SetProviderRef maps a local issue to a remote provider reference after sync.
+func SetProviderRef(db *sql.DB, localID int64, providerName, providerKey, providerRef string) error {
 	_, err := db.Exec(
-		"UPDATE issues SET remote_id = ?, remote_db_id = ?, sync_status = 'synced', synced_at = ? WHERE id = ?",
-		remoteID, remoteDBID, time.Now().UTC(), localID,
+		"UPDATE issues SET provider_name = ?, provider_key = ?, provider_ref = ?, sync_status = 'synced', synced_at = ? WHERE id = ?",
+		providerName, providerKey, providerRef, time.Now().UTC(), localID,
 	)
 	return err
 }
@@ -168,11 +169,11 @@ func SetSyncStatus(db *sql.DB, id int64, status string) error {
 // scanIssue scans a single issue from a sql.Row.
 func scanIssue(row *sql.Row) (*LocalIssue, error) {
 	var issue LocalIssue
-	var remoteID, remoteDBID, assignee, remoteETag sql.NullString
+	var providerName, providerKey, providerRef, assignee, remoteETag sql.NullString
 	var syncedAt sql.NullTime
 
 	err := row.Scan(
-		&issue.ID, &remoteID, &remoteDBID, &issue.Summary, &issue.Description,
+		&issue.ID, &providerName, &providerKey, &providerRef, &issue.Summary, &issue.Description,
 		&issue.State, &issue.Priority, &assignee,
 		&issue.CreatedAt, &issue.UpdatedAt, &syncedAt, &issue.SyncStatus, &remoteETag,
 	)
@@ -183,12 +184,9 @@ func scanIssue(row *sql.Row) (*LocalIssue, error) {
 		return nil, err
 	}
 
-	if remoteID.Valid {
-		issue.RemoteID = &remoteID.String
-	}
-	if remoteDBID.Valid {
-		issue.RemoteDBID = &remoteDBID.String
-	}
+	issue.ProviderName = providerName.String
+	issue.ProviderKey = providerKey.String
+	issue.ProviderRef = providerRef.String
 	if assignee.Valid {
 		issue.Assignee = &assignee.String
 	}
@@ -205,11 +203,11 @@ func scanIssue(row *sql.Row) (*LocalIssue, error) {
 // scanIssueRow scans a single issue from sql.Rows.
 func scanIssueRow(rows *sql.Rows) (*LocalIssue, error) {
 	var issue LocalIssue
-	var remoteID, remoteDBID, assignee, remoteETag sql.NullString
+	var providerName, providerKey, providerRef, assignee, remoteETag sql.NullString
 	var syncedAt sql.NullTime
 
 	err := rows.Scan(
-		&issue.ID, &remoteID, &remoteDBID, &issue.Summary, &issue.Description,
+		&issue.ID, &providerName, &providerKey, &providerRef, &issue.Summary, &issue.Description,
 		&issue.State, &issue.Priority, &assignee,
 		&issue.CreatedAt, &issue.UpdatedAt, &syncedAt, &issue.SyncStatus, &remoteETag,
 	)
@@ -217,12 +215,9 @@ func scanIssueRow(rows *sql.Rows) (*LocalIssue, error) {
 		return nil, err
 	}
 
-	if remoteID.Valid {
-		issue.RemoteID = &remoteID.String
-	}
-	if remoteDBID.Valid {
-		issue.RemoteDBID = &remoteDBID.String
-	}
+	issue.ProviderName = providerName.String
+	issue.ProviderKey = providerKey.String
+	issue.ProviderRef = providerRef.String
 	if assignee.Valid {
 		issue.Assignee = &assignee.String
 	}

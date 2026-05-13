@@ -65,21 +65,21 @@ func TestGetIssueNotFound(t *testing.T) {
 	}
 }
 
-func TestGetIssueByRemoteID(t *testing.T) {
+func TestGetIssueByProviderRef(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
 	issue, _ := CreateIssue(db, "Remote", "Desc", "Open", "Normal", "")
-	if err := SetRemoteID(db, issue.ID, "PROJ-1", "1-1"); err != nil {
-		t.Fatalf("set remote id: %v", err)
+	if err := SetProviderRef(db, issue.ID, "", "1-1", "PROJ-1"); err != nil {
+		t.Fatalf("set provider ref: %v", err)
 	}
 
-	got, err := GetIssueByRemoteID(db, "PROJ-1")
+	got, err := GetIssueByProviderRef(db, "", "PROJ-1")
 	if err != nil {
-		t.Fatalf("get by remote id: %v", err)
+		t.Fatalf("get by provider ref: %v", err)
 	}
 	if got == nil || got.ID != issue.ID {
-		t.Fatal("issue not found by remote ID")
+		t.Fatal("issue not found by provider ref")
 	}
 }
 
@@ -192,21 +192,21 @@ func TestCountIssues(t *testing.T) {
 	}
 }
 
-func TestSetRemoteIDAndSyncStatus(t *testing.T) {
+func TestSetProviderRefAndSyncStatus(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
 	issue, _ := CreateIssue(db, "Remote", "Desc", "Open", "Normal", "")
-	if err := SetRemoteID(db, issue.ID, "PROJ-99", "99-1"); err != nil {
-		t.Fatalf("set remote id: %v", err)
+	if err := SetProviderRef(db, issue.ID, "", "99-1", "PROJ-99"); err != nil {
+		t.Fatalf("set provider ref: %v", err)
 	}
 	if err := SetSyncStatus(db, issue.ID, "synced"); err != nil {
 		t.Fatalf("set sync status: %v", err)
 	}
 
 	got, _ := GetIssue(db, issue.ID)
-	if got.RemoteID == nil || *got.RemoteID != "PROJ-99" {
-		t.Errorf("remote_id = %v, want PROJ-99", got.RemoteID)
+	if got.ProviderRef != "PROJ-99" {
+		t.Errorf("provider_ref = %v, want PROJ-99", got.ProviderRef)
 	}
 	if got.SyncStatus != "synced" {
 		t.Errorf("sync_status = %q, want synced", got.SyncStatus)

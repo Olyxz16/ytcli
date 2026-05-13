@@ -7,9 +7,9 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var openCmd = &cobra.Command{
@@ -28,11 +28,11 @@ var openCmd = &cobra.Command{
 				if err == nil {
 					issue, _ := store.GetIssue(db, localID)
 					if issue != nil {
-						if issue.RemoteID != nil {
+if issue.ProviderRef != "" {
 							// Open in browser
 							_, merged, err := buildService()
 							if err == nil {
-								url := fmt.Sprintf("%s/issue/%s", merged.InstanceURL, *issue.RemoteID)
+								url := fmt.Sprintf("%s/issue/%s", merged.ProviderURL, issue.ProviderRef)
 								if err := openBrowser(url); err != nil {
 									handleError(err)
 								}
@@ -44,7 +44,7 @@ var openCmd = &cobra.Command{
 						if editor == "" {
 							editor = "vim"
 						}
-						tmpfile, err := os.CreateTemp("", fmt.Sprintf("ytcli-issue-%d-*.md", issue.ID))
+						tmpfile, err := os.CreateTemp("", fmt.Sprintf("tkt-issue-%d-*.md", issue.ID))
 						if err != nil {
 							handleError(err)
 						}
@@ -75,7 +75,7 @@ var openCmd = &cobra.Command{
 			os.Exit(3)
 		}
 
-		url := fmt.Sprintf("%s/issue/%s", merged.InstanceURL, args[0])
+		url := fmt.Sprintf("%s/issue/%s", merged.ProviderURL, args[0])
 		if err := openBrowser(url); err != nil {
 			handleError(err)
 		}

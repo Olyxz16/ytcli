@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/render"
+	"github.com/Olyxz16/tkt/internal/render"
 )
 
 var projectsCmd = &cobra.Command{

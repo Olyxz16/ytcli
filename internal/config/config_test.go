@@ -4,16 +4,12 @@ import (
 	"testing"
 )
 
-func TestResolveWithLocalInstance(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work":     {URL: "https://work.youtrack.cloud"},
-			"personal": {URL: "https://personal.myjetbrains.com/youtrack"},
-		},
-		OutputFormat: "table",
-	}
+func TestResolveWithProvider(t *testing.T) {
 	local := &LocalConfig{
-		Instance:     "personal",
+		Provider: ProviderConfig{
+			Name: "youtrack",
+			URL:  "https://work.youtrack.cloud",
+		},
 		Project:      "PROJ",
 		DefaultQuery: "#Unresolved",
 	}
@@ -21,16 +17,16 @@ func TestResolveWithLocalInstance(t *testing.T) {
 		CurrentTask: "PROJ-42",
 	}
 
-	merged, err := Resolve(global, local, private)
+	merged, err := Resolve(local, private)
 	if err != nil {
 		t.Fatalf("resolve failed: %v", err)
 	}
 
-	if merged.Instance != "personal" {
-		t.Errorf("expected instance personal, got %s", merged.Instance)
+	if merged.ProviderName != "youtrack" {
+		t.Errorf("expected provider name youtrack, got %s", merged.ProviderName)
 	}
-	if merged.InstanceURL != "https://personal.myjetbrains.com/youtrack" {
-		t.Errorf("unexpected URL: %s", merged.InstanceURL)
+	if merged.ProviderURL != "https://work.youtrack.cloud" {
+		t.Errorf("unexpected URL: %s", merged.ProviderURL)
 	}
 	if merged.Project != "PROJ" {
 		t.Errorf("expected project PROJ, got %s", merged.Project)
@@ -38,38 +34,34 @@ func TestResolveWithLocalInstance(t *testing.T) {
 	if merged.CurrentTask != "PROJ-42" {
 		t.Errorf("expected current task PROJ-42, got %s", merged.CurrentTask)
 	}
-	if merged.OutputFormat != "table" {
-		t.Errorf("expected output table, got %s", merged.OutputFormat)
-	}
 }
 
-func TestResolveNoLocalInstance(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work": {URL: "https://work.youtrack.cloud"},
-		},
-	}
-	merged, err := Resolve(global, &LocalConfig{}, &LocalPrivateConfig{})
+func TestResolveNoProvider(t *testing.T) {
+	merged, err := Resolve(&LocalConfig{}, &LocalPrivateConfig{})
 	if err != nil {
 		t.Fatalf("resolve failed: %v", err)
 	}
-	if merged.Instance != "" {
-		t.Errorf("expected empty instance (no default), got %s", merged.Instance)
+	if merged.ProviderName != "" {
+		t.Errorf("expected empty provider name, got %s", merged.ProviderName)
 	}
-	if merged.InstanceURL != "" {
-		t.Errorf("expected empty URL, got %s", merged.InstanceURL)
+	if merged.ProviderURL != "" {
+		t.Errorf("expected empty URL, got %s", merged.ProviderURL)
 	}
 }
 
-func TestResolveInstanceNotFound(t *testing.T) {
-	global := &GlobalConfig{
-		Instances: map[string]InstanceConfig{
-			"work": {URL: "https://work.youtrack.cloud"},
-		},
+func TestResolveBackwardsCompatInstance(t *testing.T) {
+	local := &LocalConfig{
+		Instance:    "work",
+		InstanceURL: "https://work.youtrack.cloud",
 	}
-	local := &LocalConfig{Instance: "missing"}
-	_, err := Resolve(global, local, nil)
-	if err == nil {
-		t.Fatal("expected error for missing instance")
+	merged, err := Resolve(local, nil)
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+	if merged.ProviderName != "work" {
+		t.Errorf("expected provider name work, got %s", merged.ProviderName)
+	}
+	if merged.ProviderURL != "https://work.youtrack.cloud" {
+		t.Errorf("unexpected URL: %s", merged.ProviderURL)
 	}
 }

@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/wiki"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/wiki"
 )
 
 var (
@@ -22,7 +22,7 @@ var wikiCmd = &cobra.Command{
 	Long: `Sync YouTrack knowledge base articles with a local wiki directory.
 
 The wiki directory must be configured with:
-  ytcli config set wiki_dir <path>
+  tkt config set wiki_dir <path>
 
 Use --pull to download articles from YouTrack to local files.
 Use --push to upload local edits to existing YouTrack articles.
@@ -30,14 +30,14 @@ Use --status to check if local files are up to date with remote.
 
 Pull is idempotent: files are only overwritten if the remote version is newer.
 Push only updates existing articles — it never creates new ones.
-To create a new article, use: ytcli create-article`,
+To create a new article, use: tkt create-article`,
 	Run: func(cmd *cobra.Command, args []string) {
 		localCfg, _, err := config.LoadLocal()
 		if err != nil {
 			handleError(err)
 		}
 		if localCfg.WikiDir == "" {
-			fmt.Fprintln(os.Stderr, "Error: wiki_dir not configured. Run: ytcli config set wiki_dir <path>")
+			fmt.Fprintln(os.Stderr, "Error: wiki_dir not configured. Run: tkt config set wiki_dir <path>")
 			os.Exit(1)
 		}
 

@@ -26,7 +26,7 @@ type Result struct {
 
 // FlowConfig configures the implicit grant flow.
 type FlowConfig struct {
-	HubURL      string // e.g. https://ytcli.youtrack.cloud/hub
+	HubURL      string // e.g. https://example.youtrack.cloud/hub
 	ClientID    string // Hub service ID for the CLI app
 	Scope       string // YouTrack service ID in Hub
 	RedirectURI string // auto-populated
@@ -155,7 +155,7 @@ var callbackTmpl = template.Must(template.New("callback").Parse(`<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>ytcli OAuth</title>
+<title>tkt OAuth</title>
 <style>
 body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; text-align: center; }
 .success { color: #2ea043; }

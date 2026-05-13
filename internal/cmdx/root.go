@@ -5,27 +5,27 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/api"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/service"
+	"errors"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/provider"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/service"
 )
 
 var (
 	instanceFlag string
-	outputFlag   string
-	quietFlag    bool
+	outputFlag  string
+	quietFlag   bool
 )
 
 // rootCmd is the base command.
 var rootCmd = &cobra.Command{
-	Use:   "ytcli",
-	Short: "A fast CLI for YouTrack",
-	Long:  `ytcli is a fast, agent-friendly command-line interface for JetBrains YouTrack.`,
+	Use:   "tkt",
+	Short: "A fast CLI for project management",
+	Long:  `tkt is a fast, agent-friendly CLI for project management.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if quietFlag && outputFlag == "" {
 			outputFlag = "json"
@@ -45,7 +45,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&instanceFlag, "instance", "i", "", "YouTrack instance name")
+	rootCmd.PersistentFlags().StringVarP(&instanceFlag, "instance", "i", "", "Provider instance name")
 	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "Output format: table, json, wide, markdown")
 	rootCmd.PersistentFlags().BoolVarP(&quietFlag, "quiet", "q", false, "Minimal output")
 }
@@ -55,48 +55,33 @@ func getOutputMode() render.OutputMode {
 	if outputFlag != "" {
 		return render.OutputMode(outputFlag)
 	}
-	global, _ := config.LoadGlobal()
-	if global != nil && global.OutputFormat != "" {
-		return render.OutputMode(global.OutputFormat)
-	}
 	return render.OutputTable
 }
 
 // buildService creates a service from resolved configuration.
 func buildService() (*service.Service, *config.MergedConfig, error) {
-	global, err := config.LoadGlobal()
-	if err != nil {
-		return nil, nil, fmt.Errorf("load global config: %w", err)
-	}
 	local, _, err := config.LoadLocal()
 	if err != nil {
 		return nil, nil, fmt.Errorf("load local config: %w", err)
 	}
 	private, _, err := config.LoadLocalPrivate()
 	if err != nil {
-		return nil, nil, fmt.Errorf("load local private config: %w", err)
+		return nil, nil, fmt.Errorf("load private config: %w", err)
 	}
 
-	merged, err := config.Resolve(global, local, private)
+	merged, err := config.Resolve(local, private)
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolve config: %w", err)
 	}
 
 	if instanceFlag != "" {
-		merged.Instance = instanceFlag
-		inst, ok := global.Instances[merged.Instance]
-		if !ok {
-			return nil, nil, fmt.Errorf("instance %q not found", merged.Instance)
-		}
-		merged.InstanceURL = strings.TrimSuffix(inst.URL, "/")
+		merged.ProviderName = instanceFlag
 	}
 
-	if merged.InstanceURL == "" {
-		msg := "no YouTrack instance configured"
-		if len(global.Instances) == 0 && merged.Instance == "" {
-			msg = "no YouTrack instances configured. Run: ytcli config setup"
-		} else {
-			msg = "no instance bound to this project. Run: ytcli init, ytcli config set instance <name>, or ytcli config set instance_url <url>"
+	if merged.ProviderURL == "" {
+		msg := "no provider URL configured"
+		if merged.ProviderName == "" {
+			msg = "no provider configured. Run: tkt config set provider.url <url>"
 		}
 		return nil, nil, fmt.Errorf("%s", msg)
 	}
@@ -112,12 +97,18 @@ func buildService() (*service.Service, *config.MergedConfig, error) {
 func handleError(err error) {
 	render.Error(err, getOutputMode())
 	code := 1
+	var authErr *provider.AuthError
+	var netErr *provider.NetworkError
+	var notFoundErr *provider.NotFoundError
+	var valErr *provider.ValidationError
 	switch {
-	case api.IsAuthError(err):
+	case errors.As(err, &authErr):
 		code = 2
-	case api.IsNotFoundError(err):
+	case errors.As(err, &netErr):
+		code = 2
+	case errors.As(err, &notFoundErr):
 		code = 3
-	case api.IsValidationError(err):
+	case errors.As(err, &valErr):
 		code = 4
 	}
 	os.Exit(code)

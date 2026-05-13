@@ -6,10 +6,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/api"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/oauth"
-	"github.com/Olyxz16/ytcli/internal/render"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/oauth"
+	"github.com/Olyxz16/tkt/internal/provider/youtrack"
+	"github.com/Olyxz16/tkt/internal/render"
 )
 
 var (
@@ -23,9 +23,9 @@ var authCmd = &cobra.Command{
 }
 
 var authLoginCmd = &cobra.Command{
-	Use:   "login [instance]",
-	Short: "Authenticate with a YouTrack instance",
-	Long: `Authenticate with a YouTrack instance.
+	Use:   "login [provider]",
+	Short: "Authenticate with a remote provider",
+	Long: `Authenticate with a remote provider.
 
 By default, this prompts for a permanent token (recommended for CLI use).
 Use --oauth to authenticate via OAuth 2.0 implicit grant instead. OAuth
@@ -33,41 +33,39 @@ requires the instance to have a Hub service configured and a client_id.
 `,
 	Args: cobra.RangeArgs(0, 1),
 	Run: func(cmd *cobra.Command, args []string) {
-		global, err := config.LoadGlobal()
-		if err != nil {
-			handleError(err)
+		localCfg, _, _ := config.LoadLocal()
+		providerName := ""
+		providerURL := ""
+
+		if localCfg != nil && localCfg.Provider.Name != "" {
+			providerName = localCfg.Provider.Name
+			providerURL = localCfg.Provider.URL
+		}
+		// Backwards compatibility
+		if providerName == "" && localCfg != nil && localCfg.Instance != "" {
+			providerName = localCfg.Instance
+			providerURL = localCfg.InstanceURL
 		}
 
-		instance := ""
-		localCfg, _, _ := config.LoadLocal()
-		if localCfg != nil && localCfg.Instance != "" {
-			instance = localCfg.Instance
-		}
 		if len(args) > 0 {
-			instance = args[0]
+			providerName = args[0]
 		}
-		if instance == "" {
-			fmt.Fprintln(os.Stderr, "Error: no instance specified. Provide an instance name, or configure with: ytcli config set instance_url <url>")
+		if providerName == "" {
+			fmt.Fprintln(os.Stderr, "Error: no provider specified. Provide a provider name, or configure with: tkt config set provider.name <name>")
 			os.Exit(1)
 		}
 
-		inst, ok := global.Instances[instance]
-		if !ok {
-			if localCfg != nil && localCfg.InstanceURL != "" {
-				inst = config.InstanceConfig{URL: localCfg.InstanceURL}
-			} else {
-				fmt.Fprintf(os.Stderr, "Instance %q not found in config.\n", instance)
-				fmt.Fprintln(os.Stderr, "Add it first with: ytcli config set instances.<name>.url <url>")
-				os.Exit(1)
-			}
+		if providerURL == "" {
+			fmt.Fprintf(os.Stderr, "Error: no provider URL configured for %q. Run: tkt config set provider.url <url>\n", providerName)
+			os.Exit(1)
 		}
 
 		var token string
 
 		if authOAuthFlag {
-			token = runOAuthFlow(cmd.Context(), instance, inst)
+			token = runOAuthFlow(cmd.Context(), providerName, providerURL)
 		} else {
-			token = runTokenFlow(cmd.Context(), instance, inst)
+			token = runTokenFlow(cmd.Context(), providerName, providerURL)
 		}
 
 		if token == "" {
@@ -75,8 +73,8 @@ requires the instance to have a Hub service configured and a client_id.
 			os.Exit(1)
 		}
 
-		if err := config.SetToken(instance, token); err != nil {
-			if err := config.SetTokenFile(instance, token); err != nil {
+		if err := config.SetToken(providerName, token); err != nil {
+			if err := config.SetTokenFile(providerName, token); err != nil {
 				handleError(err)
 			}
 			fmt.Println("Token saved to fallback credentials file (keyring unavailable)")
@@ -86,7 +84,7 @@ requires the instance to have a Hub service configured and a client_id.
 	},
 }
 
-func runTokenFlow(ctx context.Context, instance string, inst config.InstanceConfig) string {
+func runTokenFlow(ctx context.Context, providerName, providerURL string) string {
 	token := authTokenFlag
 	if token == "" {
 		fmt.Print("Enter permanent token: ")
@@ -97,63 +95,26 @@ func runTokenFlow(ctx context.Context, instance string, inst config.InstanceConf
 		os.Exit(1)
 	}
 
-	// Verify token by calling /users/me
-	apiClient := api.NewClient(inst.URL, token)
-	if _, err := apiClient.Me(ctx); err != nil {
+	// Verify token by pinging the provider
+	prov := youtrack.NewProvider(providerURL, token)
+	if err := prov.Ping(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: token verification failed: %s\n", err)
 	}
 
 	return token
 }
 
-func runOAuthFlow(ctx context.Context, instance string, inst config.InstanceConfig) string {
-	hubURL := inst.HubURL
-	if hubURL == "" {
-		hubURL = oauth.DiscoverHubURL(inst.URL)
-		fmt.Printf("Auto-discovered Hub URL: %s\n", hubURL)
-	}
+func runOAuthFlow(ctx context.Context, providerName, providerURL string) string {
+	hubURL := oauth.DiscoverHubURL(providerURL)
+	fmt.Printf("Auto-discovered Hub URL: %s\n", hubURL)
 
-	clientID := inst.ClientID
-	if clientID == "" {
-		fmt.Fprintf(os.Stderr, "Error: OAuth requires a client_id for instance %q.\n", instance)
-		fmt.Fprintln(os.Stderr, "Register this CLI as a service in Hub (Admin > Services) and set the ID:")
-		fmt.Fprintf(os.Stderr, "  ytcli config set instances.%s.client_id <id>\n", instance)
-		os.Exit(1)
-	}
+	// For now, OAuth still requires client_id to be configured per-provider
+	fmt.Fprintf(os.Stderr, "OAuth requires a client_id for provider %q.\n", providerName)
+	fmt.Fprintln(os.Stderr, "Register this CLI as a service in Hub (Admin > Services) and configure it.")
+	os.Exit(1)
 
-	scope := inst.Scope
-	if scope == "" {
-		// Try to discover YouTrack service ID from Hub
-		token, err := config.GetToken(instance)
-		if err == nil && token != "" {
-			services, err := oauth.ListServices(ctx, hubURL, token)
-			if err == nil {
-				scope = oauth.FindYouTrackServiceID(services)
-			}
-		}
-		if scope == "" {
-			fmt.Fprintf(os.Stderr, "Error: OAuth requires a scope (YouTrack service ID) for instance %q.\n", instance)
-			fmt.Fprintln(os.Stderr, "Set it with:")
-			fmt.Fprintf(os.Stderr, "  ytcli config set instances.%s.scope <youtrack-service-id>\n", instance)
-			fmt.Fprintln(os.Stderr, "Or authenticate with a permanent token first so we can auto-discover it:")
-			fmt.Fprintln(os.Stderr, "  ytcli auth login --token <token>")
-			os.Exit(1)
-		}
-		fmt.Printf("Auto-discovered YouTrack service ID: %s\n", scope)
-	}
-
-	result, err := oauth.ImplicitFlow(ctx, oauth.FlowConfig{
-		HubURL:   hubURL,
-		ClientID: clientID,
-		Scope:    scope,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "OAuth flow failed: %s\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("OAuth token obtained (expires in %d seconds).\n", result.ExpiresIn)
-	return result.AccessToken
+	// This path is kept for future implementation with provider-specific OAuth config
+	return ""
 }
 
 var authWhoamiCmd = &cobra.Command{

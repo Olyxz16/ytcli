@@ -1,4 +1,4 @@
-module github.com/Olyxz16/ytcli
+module github.com/Olyxz16/tkt
 
 go 1.25.0
 

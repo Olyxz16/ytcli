@@ -10,29 +10,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const keyringService = "ytcli"
+const keyringService = "tkt"
 
-// SetToken stores a token for the given instance in the OS keyring.
-func SetToken(instance, token string) error {
-	return keyring.Set(keyringService, instance, token)
+// SetToken stores a token for the given provider in the OS keyring.
+func SetToken(provider, token string) error {
+	return keyring.Set(keyringService, provider, token)
 }
 
-// GetToken retrieves a token for the given instance from the OS keyring.
+// GetToken retrieves a token for the given provider from the OS keyring.
 // Falls back to credentials file if keyring is unavailable.
-func GetToken(instance string) (string, error) {
-	token, err := keyring.Get(keyringService, instance)
+func GetToken(provider string) (string, error) {
+	token, err := keyring.Get(keyringService, provider)
 	if err == nil {
 		return token, nil
 	}
 
 	// Fallback to file-based credentials
-	return getTokenFromFile(instance)
+	return getTokenFromFile(provider)
 }
 
-// DeleteToken removes a token for the given instance.
-func DeleteToken(instance string) error {
-	_ = keyring.Delete(keyringService, instance)
-	_, _ = deleteTokenFromFile(instance)
+// DeleteToken removes a token for the given provider.
+func DeleteToken(provider string) error {
+	_ = keyring.Delete(keyringService, provider)
+	_, _ = deleteTokenFromFile(provider)
 	return nil
 }
 
@@ -40,12 +40,12 @@ type credentialsFile struct {
 	Tokens map[string]string `yaml:"tokens"`
 }
 
-func getTokenFromFile(instance string) (string, error) {
+func getTokenFromFile(provider string) (string, error) {
 	path := CredentialsPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("no token found for instance %q", instance)
+			return "", fmt.Errorf("no token found for provider %q", provider)
 		}
 		return "", err
 	}
@@ -53,14 +53,14 @@ func getTokenFromFile(instance string) (string, error) {
 	if err := yaml.Unmarshal(data, &creds); err != nil {
 		return "", err
 	}
-	token, ok := creds.Tokens[instance]
+	token, ok := creds.Tokens[provider]
 	if !ok {
-		return "", fmt.Errorf("no token found for instance %q", instance)
+		return "", fmt.Errorf("no token found for provider %q", provider)
 	}
 	return token, nil
 }
 
-func deleteTokenFromFile(instance string) (bool, error) {
+func deleteTokenFromFile(provider string) (bool, error) {
 	path := CredentialsPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -70,10 +70,10 @@ func deleteTokenFromFile(instance string) (bool, error) {
 	if err := yaml.Unmarshal(data, &creds); err != nil {
 		return false, err
 	}
-	if _, ok := creds.Tokens[instance]; !ok {
+	if _, ok := creds.Tokens[provider]; !ok {
 		return false, nil
 	}
-	delete(creds.Tokens, instance)
+	delete(creds.Tokens, provider)
 	out, err := yaml.Marshal(&creds)
 	if err != nil {
 		return false, err
@@ -86,7 +86,7 @@ func deleteTokenFromFile(instance string) (bool, error) {
 }
 
 // SetTokenFile stores a token in the fallback credentials file.
-func SetTokenFile(instance, token string) error {
+func SetTokenFile(provider, token string) error {
 	path := CredentialsPath()
 	var creds credentialsFile
 	data, err := os.ReadFile(path)
@@ -96,7 +96,7 @@ func SetTokenFile(instance, token string) error {
 	if creds.Tokens == nil {
 		creds.Tokens = make(map[string]string)
 	}
-	creds.Tokens[instance] = token
+	creds.Tokens[provider] = token
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}

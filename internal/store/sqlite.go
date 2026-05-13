@@ -15,7 +15,7 @@ func DBPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(wd, ".ytcli", "store.db"), nil
+	return filepath.Join(wd, ".tkt", "store.db"), nil
 }
 
 // Open opens the local SQLite database, creating it if necessary.

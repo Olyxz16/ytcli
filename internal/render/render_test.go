@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Olyxz16/ytcli/internal/model"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/model"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 func captureStdout(fn func()) string {
@@ -60,7 +60,7 @@ func TestJSONQuiet(t *testing.T) {
 
 func TestIssueListJSON(t *testing.T) {
 	out := captureStdout(func() {
-		IssueList([]model.Issue{{IDReadable: "PROJ-1", Summary: "Test"}}, OutputJSON)
+		IssueList([]model.Issue{{ID: "PROJ-1", Summary: "Test"}}, OutputJSON)
 	})
 	if !strings.Contains(out, "PROJ-1") {
 		t.Errorf("output = %q", out)
@@ -69,7 +69,7 @@ func TestIssueListJSON(t *testing.T) {
 
 func TestIssueListTable(t *testing.T) {
 	out := captureStdout(func() {
-		IssueList([]model.Issue{{IDReadable: "PROJ-1", Summary: "Test"}}, OutputTable)
+		IssueList([]model.Issue{{ID: "PROJ-1", Summary: "Test"}}, OutputTable)
 	})
 	if !strings.Contains(out, "PROJ-1") {
 		t.Errorf("output = %q", out)
@@ -87,7 +87,7 @@ func TestIssueListEmpty(t *testing.T) {
 
 func TestIssueDetailJSON(t *testing.T) {
 	out := captureStdout(func() {
-		IssueDetail(&model.Issue{IDReadable: "PROJ-1", Summary: "Test"}, OutputJSON)
+		IssueDetail(&model.Issue{ID: "PROJ-1", Summary: "Test"}, OutputJSON)
 	})
 	if !strings.Contains(out, "PROJ-1") {
 		t.Errorf("output = %q", out)
@@ -96,7 +96,7 @@ func TestIssueDetailJSON(t *testing.T) {
 
 func TestIssueDetailText(t *testing.T) {
 	out := captureStdout(func() {
-		IssueDetail(&model.Issue{IDReadable: "PROJ-1", Summary: "Test", Project: &model.Project{Name: "P"}}, OutputTable)
+		IssueDetail(&model.Issue{ID: "PROJ-1", Summary: "Test", Project: &model.Project{Name: "P"}}, OutputTable)
 	})
 	if !strings.Contains(out, "PROJ-1") {
 		t.Errorf("output = %q", out)

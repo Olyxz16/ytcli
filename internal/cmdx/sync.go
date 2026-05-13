@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/store"
-	"github.com/Olyxz16/ytcli/internal/sync"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/store"
+	"github.com/Olyxz16/tkt/internal/sync"
 )
 
 var (
@@ -20,10 +20,10 @@ var (
 
 var syncCmd = &cobra.Command{
 	Use:   "sync",
-	Short: "Sync local issues with YouTrack",
+	Short: "Sync local issues with remote provider",
 	Run: func(cmd *cobra.Command, args []string) {
 		if !store.IsInitialized() {
-			fmt.Fprintln(os.Stderr, "Error: no local project found. Run: ytcli init")
+			fmt.Fprintln(os.Stderr, "Error: no local project found. Run: tkt init")
 			os.Exit(1)
 		}
 
@@ -40,16 +40,18 @@ var syncCmd = &cobra.Command{
 
 		svc, merged, err := buildService()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error: no remote configured. Run: ytcli config setup")
+			fmt.Fprintln(os.Stderr, "Error: no remote configured. Run: tkt config setup")
 			os.Exit(2)
 		}
+
+		prov := svc.RemoteProvider()
 
 		if syncDryRunFlag {
 			fmt.Println("Dry run mode — no changes will be made.")
 			fmt.Println()
 		}
 
-		mgr := sync.NewManager(db, svc, merged)
+		mgr := sync.NewManager(db, prov, merged)
 		ctx := cmd.Context()
 		var result *sync.Result
 
@@ -101,7 +103,7 @@ var syncCmd = &cobra.Command{
 			}
 		}
 		if result.Conflicts > 0 {
-			fmt.Printf("Conflicts: %d (run 'ytcli sync --status' to see details)\n", result.Conflicts)
+			fmt.Printf("Conflicts: %d (run 'tkt sync --status' to see details)\n", result.Conflicts)
 		}
 	},
 }

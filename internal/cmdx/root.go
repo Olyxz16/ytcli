@@ -94,6 +94,7 @@ func buildService() (*service.Service, *config.MergedConfig, error) {
 }
 
 // handleError prints an error in the appropriate format and exits with a meaningful code.
+// It provides human-readable context and actionable hints based on the error type.
 func handleError(err error) {
 	render.Error(err, getOutputMode())
 	code := 1
@@ -101,15 +102,29 @@ func handleError(err error) {
 	var netErr *provider.NetworkError
 	var notFoundErr *provider.NotFoundError
 	var valErr *provider.ValidationError
+	var conflictErr *provider.ConflictError
+
 	switch {
 	case errors.As(err, &authErr):
 		code = 2
+		fmt.Fprintln(os.Stderr, "\nHint: Your authentication token may be expired or invalid.")
+		fmt.Fprintln(os.Stderr, "      Re-authenticate with: tkt remote auth")
 	case errors.As(err, &netErr):
 		code = 2
+		fmt.Fprintln(os.Stderr, "\nHint: Could not reach the remote provider. Check your network connection")
+		fmt.Fprintln(os.Stderr, "      and verify the provider URL in .tktrc.yml.")
 	case errors.As(err, &notFoundErr):
 		code = 3
+		fmt.Fprintln(os.Stderr, "\nHint: The requested resource was not found.")
+		fmt.Fprintln(os.Stderr, "      Check the ID and ensure it exists on the remote.")
 	case errors.As(err, &valErr):
 		code = 4
+		fmt.Fprintln(os.Stderr, "\nHint: The remote provider rejected the operation.")
+		fmt.Fprintln(os.Stderr, "      Verify the input values and try again.")
+	case errors.As(err, &conflictErr):
+		code = 1
+		fmt.Fprintln(os.Stderr, "\nHint: A sync conflict was detected. Resolve it with:")
+		fmt.Fprintln(os.Stderr, "      tkt remote status")
 	}
 	os.Exit(code)
 }

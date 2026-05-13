@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var (
@@ -64,7 +64,7 @@ var issuesCmd = &cobra.Command{
 
 		if quietFlag && len(issues) > 0 {
 			for _, i := range issues {
-				fmt.Println(i.IDReadable)
+				fmt.Println(i.ID)
 			}
 			return
 		}
@@ -135,7 +135,7 @@ var showCmd = &cobra.Command{
 		}
 
 		if openWeb {
-			url := fmt.Sprintf("%s/issue/%s", merged.InstanceURL, args[0])
+			url := fmt.Sprintf("%s/issue/%s", merged.ProviderURL, args[0])
 			if err := openBrowser(url); err != nil {
 				handleError(err)
 			}
@@ -148,7 +148,7 @@ var showCmd = &cobra.Command{
 		}
 
 		if quietFlag {
-			fmt.Println(issue.IDReadable)
+			fmt.Println(issue.ID)
 			return
 		}
 

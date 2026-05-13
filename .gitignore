@@ -1,3 +1,3 @@
-.ytcli.local.yml
-.ytcli/
-^ytcli$
+.tkt.local.yml
+.tkt/
+/tkt

@@ -2,15 +2,19 @@ package cmdx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/provider"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/store"
 )
+
+var forceStateFlag bool
 
 var stateCmd = &cobra.Command{
 	Use:   "state <issue-id> <state>",
@@ -45,8 +49,14 @@ func changeState(inputID, newState string) {
 			localCfg, _, _ := config.LoadLocal()
 			schema := local.GetSchema(localCfg)
 
-			if err := local.ValidateState(schema, newState); err != nil {
-				handleError(err)
+			if !forceStateFlag {
+				if err := local.ValidateState(schema, newState); err != nil {
+					var valErr *provider.ValidationError
+					if !errors.As(err, &valErr) {
+						err = &provider.ValidationError{Provider: "local", Message: err.Error()}
+					}
+					handleError(err)
+				}
 			}
 
 			localID, err := local.ResolveID(db, inputID, localCfg)
@@ -77,6 +87,21 @@ func changeState(inputID, newState string) {
 		os.Exit(3)
 	}
 
+	if !forceStateFlag {
+		ctx := context.Background()
+		provSchema, err := svc.RemoteProvider().FetchSchema(ctx)
+		if err == nil && provSchema != nil && len(provSchema.States) > 0 {
+			if err := local.ValidateState(config.LocalSchema{
+				States:       provSchema.States,
+				Priorities:   provSchema.Priorities,
+				DoneStates:   provSchema.DoneStates,
+				DefaultState: provSchema.DefaultState,
+			}, newState); err != nil {
+				handleError(&provider.ValidationError{Provider: svc.RemoteProvider().Name(), Message: err.Error()})
+			}
+		}
+	}
+
 	ctx := context.Background()
 	result, err := svc.ExecuteCommand(ctx, fmt.Sprintf("State: %s", newState), []string{inputID}, false)
 	if err != nil {
@@ -91,6 +116,8 @@ func changeState(inputID, newState string) {
 }
 
 func init() {
+	stateCmd.Flags().BoolVar(&forceStateFlag, "force", false, "Bypass state validation")
+	doneCmd.Flags().BoolVar(&forceStateFlag, "force", false, "Bypass state validation")
 	rootCmd.AddCommand(stateCmd)
 	rootCmd.AddCommand(doneCmd)
 }

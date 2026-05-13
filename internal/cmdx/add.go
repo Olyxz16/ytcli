@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/render"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/render"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var (
@@ -26,7 +26,7 @@ var addCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if !store.IsInitialized() {
-			fmt.Fprintln(os.Stderr, "Error: no local project found. Run: ytcli init")
+			fmt.Fprintln(os.Stderr, "Error: no local project found. Run: tkt init")
 			os.Exit(1)
 		}
 

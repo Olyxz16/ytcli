@@ -9,8 +9,8 @@ func TestDiscoverHubURL(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"https://ytcli.youtrack.cloud", "https://ytcli.youtrack.cloud/hub"},
-		{"https://ytcli.youtrack.cloud/", "https://ytcli.youtrack.cloud/hub"},
+		{"https://example.youtrack.cloud", "https://example.youtrack.cloud/hub"},
+		{"https://example.youtrack.cloud/", "https://example.youtrack.cloud/hub"},
 		{"https://company.com/youtrack", "https://company.com/hub"},
 		{"https://company.com/youtrack/", "https://company.com/hub"},
 		{"https://server.local", "https://server.local/hub"},

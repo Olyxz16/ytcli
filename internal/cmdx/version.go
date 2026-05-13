@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/render"
+	"github.com/Olyxz16/tkt/internal/render"
 )
 
 var (
@@ -27,7 +27,7 @@ var versionCmd = &cobra.Command{
 			fmt.Println(Version)
 			return
 		}
-		fmt.Printf("ytcli version %s (commit: %s)\n", Version, Commit)
+		fmt.Printf("tkt version %s (commit: %s)\n", Version, Commit)
 	},
 }
 

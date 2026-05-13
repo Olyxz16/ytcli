@@ -9,8 +9,8 @@ import (
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/Olyxz16/ytcli/internal/model"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/model"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var (
@@ -61,12 +61,11 @@ func issueListTable(issues []model.Issue) error {
 		return nil
 	}
 
-	// Determine column widths
 	maxID := 10
 	maxSummary := 30
 	for _, i := range issues {
-		if len(i.IDReadable) > maxID {
-			maxID = len(i.IDReadable)
+		if len(i.ID) > maxID {
+			maxID = len(i.ID)
 		}
 		if len(i.Summary) > maxSummary {
 			maxSummary = len(i.Summary)
@@ -86,10 +85,13 @@ func issueListTable(issues []model.Issue) error {
 		if i.Resolved != nil {
 			state = "Resolved"
 			stateCol = resolvedStyle
+		} else if i.State != "" {
+			state = i.State
+			stateCol = unresolvedStyle
 		}
 		fmt.Printf(
 			"%s  %s  %s\n",
-			idStyle.Render(fmt.Sprintf("%-*s", maxID, i.IDReadable)),
+			idStyle.Render(fmt.Sprintf("%-*s", maxID, i.ID)),
 			truncate(i.Summary, maxSummary),
 			stateCol.Render(state),
 		)
@@ -108,23 +110,27 @@ func IssueDetail(issue *model.Issue, mode OutputMode) error {
 }
 
 func issueDetailText(issue *model.Issue) error {
-	fmt.Println(titleStyle.Render(issue.IDReadable + ": " + issue.Summary))
+	fmt.Println(titleStyle.Render(issue.ID + ": " + issue.Summary))
 	fmt.Println()
 
-	fmt.Printf("%s %s\n", labelStyle.Render("Project:"), issue.Project.Name)
+	if issue.Project != nil {
+		fmt.Printf("%s %s\n", labelStyle.Render("Project:"), issue.Project.Name)
+	}
 	if issue.Reporter != nil {
 		fmt.Printf("%s %s\n", labelStyle.Render("Reporter:"), issue.Reporter.DisplayName())
 	}
-	if issue.Updater != nil {
-		fmt.Printf("%s %s\n", labelStyle.Render("Updated by:"), issue.Updater.DisplayName())
+	fmt.Printf("%s %s\n", labelStyle.Render("State:"), issue.State)
+	if issue.Priority != "" {
+		fmt.Printf("%s %s\n", labelStyle.Render("Priority:"), issue.Priority)
+	}
+	if issue.Assignee != nil {
+		fmt.Printf("%s %s\n", labelStyle.Render("Assignee:"), issue.Assignee.DisplayName())
 	}
 	fmt.Printf("%s %s\n", labelStyle.Render("Created:"), formatTime(issue.Created))
 	fmt.Printf("%s %s\n", labelStyle.Render("Updated:"), formatTime(issue.Updated))
 	if issue.Resolved != nil {
 		fmt.Printf("%s %s\n", labelStyle.Render("Resolved:"), formatTime(*issue.Resolved))
 	}
-	fmt.Printf("%s %d\n", labelStyle.Render("Votes:"), issue.Votes)
-	fmt.Printf("%s %d\n", labelStyle.Render("Comments:"), issue.CommentsCount)
 
 	if len(issue.Tags) > 0 {
 		var tags []string
@@ -132,14 +138,6 @@ func issueDetailText(issue *model.Issue) error {
 			tags = append(tags, t.Name)
 		}
 		fmt.Printf("%s %s\n", labelStyle.Render("Tags:"), strings.Join(tags, ", "))
-	}
-
-	if len(issue.CustomFields) > 0 {
-		fmt.Println()
-		fmt.Println(headerStyle.Render("Custom Fields"))
-		for _, cf := range issue.CustomFields {
-			fmt.Printf("  %s %s\n", labelStyle.Render(cf.Name+":"), cf.StringValue())
-		}
 	}
 
 	if issue.Description != "" {
@@ -157,7 +155,11 @@ func issueDetailText(issue *model.Issue) error {
 		fmt.Println()
 		fmt.Println(headerStyle.Render("Comments"))
 		for _, c := range issue.Comments {
-			fmt.Printf("  %s %s\n", labelStyle.Render(c.Author.DisplayName()+":"), c.Text)
+			author := "Unknown"
+			if c.Author != nil {
+				author = c.Author.DisplayName()
+			}
+			fmt.Printf("  %s %s\n  %s\n\n", labelStyle.Render(author+":"), labelStyle.Render(formatTime(c.Created)), c.Text)
 		}
 	}
 
@@ -171,9 +173,13 @@ func CommentList(comments []model.Comment, mode OutputMode) error {
 		return JSON(comments)
 	default:
 		for _, c := range comments {
+			author := "Unknown"
+			if c.Author != nil {
+				author = c.Author.DisplayName()
+			}
 			fmt.Printf(
 				"%s %s\n  %s\n\n",
-				labelStyle.Render(c.Author.DisplayName()),
+				labelStyle.Render(author),
 				labelStyle.Render(formatTime(c.Created)),
 				c.Text,
 			)
@@ -290,7 +296,11 @@ func articleDetailText(article *model.Article) error {
 		fmt.Println()
 		fmt.Println(headerStyle.Render("Comments"))
 		for _, c := range article.Comments {
-			fmt.Printf("  %s %s\n", labelStyle.Render(c.Author.DisplayName()+":"), c.Text)
+			author := "Unknown"
+			if c.Author != nil {
+				author = c.Author.DisplayName()
+			}
+			fmt.Printf("  %s %s\n", labelStyle.Render(author+":"), c.Text)
 		}
 	}
 
@@ -321,7 +331,7 @@ func CommandResult(result *model.CommandResult, mode OutputMode) error {
 		if len(result.Issues) > 0 {
 			fmt.Println("Applied to:")
 			for _, i := range result.Issues {
-				fmt.Printf("  %s %s\n", idStyle.Render(i.IDReadable), i.Summary)
+				fmt.Printf("  %s %s\n", idStyle.Render(i.ID), i.Summary)
 			}
 		}
 		return nil
@@ -365,8 +375,8 @@ func localIssueListTable(issues []store.LocalIssue) error {
 	maxSummary := 30
 	for _, i := range issues {
 		displayID := fmt.Sprintf("#%d", i.ID)
-		if i.RemoteID != nil {
-			displayID = *i.RemoteID
+		if i.ProviderRef != "" {
+			displayID = i.ProviderRef
 		}
 		if len(displayID) > maxID {
 			maxID = len(displayID)
@@ -386,8 +396,8 @@ func localIssueListTable(issues []store.LocalIssue) error {
 
 	for _, i := range issues {
 		displayID := fmt.Sprintf("#%d", i.ID)
-		if i.RemoteID != nil {
-			displayID = *i.RemoteID
+		if i.ProviderRef != "" {
+			displayID = i.ProviderRef
 		}
 
 		stateCol := unresolvedStyle
@@ -430,8 +440,8 @@ func LocalIssueDetail(issue *store.LocalIssue, mode OutputMode) error {
 
 func localIssueDetailText(issue *store.LocalIssue) error {
 	displayID := fmt.Sprintf("#%d", issue.ID)
-	if issue.RemoteID != nil {
-		displayID = *issue.RemoteID
+	if issue.ProviderRef != "" {
+		displayID = issue.ProviderRef
 	}
 	fmt.Println(titleStyle.Render(displayID + ": " + issue.Summary))
 	fmt.Println()

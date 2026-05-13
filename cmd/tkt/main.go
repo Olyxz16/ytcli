@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Olyxz16/ytcli/internal/cmdx"
+	"github.com/Olyxz16/tkt/internal/cmdx"
 )
 
 func main() {

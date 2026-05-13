@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/model"
-	"github.com/Olyxz16/ytcli/internal/render"
+	"github.com/Olyxz16/tkt/internal/model"
+	"github.com/Olyxz16/tkt/internal/render"
 )
 
 var (
@@ -61,18 +61,8 @@ var createCmd = &cobra.Command{
 			Project:     &model.Project{ShortName: projectID},
 		}
 
-		var customFields []model.CustomField
-		if createTypeFlag != "" {
-			customFields = append(customFields, model.CustomField{
-				Name:  "Type",
-				Value: model.BundleElement{Name: createTypeFlag},
-			})
-		}
 		if createPriorityFlag != "" {
-			customFields = append(customFields, model.CustomField{
-				Name:  "Priority",
-				Value: model.BundleElement{Name: createPriorityFlag},
-			})
+			issue.Priority = createPriorityFlag
 		}
 		if createAssigneeFlag != "" {
 			assignee := createAssigneeFlag
@@ -82,13 +72,7 @@ var createCmd = &cobra.Command{
 					assignee = me.Login
 				}
 			}
-			customFields = append(customFields, model.CustomField{
-				Name:  "Assignee",
-				Value: model.User{Login: assignee},
-			})
-		}
-		if len(customFields) > 0 {
-			issue.CustomFields = customFields
+			issue.Assignee = &model.User{Login: assignee}
 		}
 
 		if len(createTagsFlag) > 0 {
@@ -105,7 +89,7 @@ var createCmd = &cobra.Command{
 		}
 
 		if quietFlag {
-			fmt.Println(created.IDReadable)
+			fmt.Println(created.ID)
 			return
 		}
 

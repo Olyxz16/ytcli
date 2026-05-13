@@ -1,11 +1,7 @@
-package api
+package youtrack
 
-import (
-	"github.com/Olyxz16/ytcli/internal/model"
-)
-
-// marshalCustomFields converts model custom fields to API payload format with $type.
-func marshalCustomFields(fields []model.CustomField) []map[string]interface{} {
+// marshalCustomFields converts custom fields to API payload format with $type.
+func marshalCustomFields(fields []ytCustomField) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(fields))
 	for i, cf := range fields {
 		m := map[string]interface{}{
@@ -16,30 +12,28 @@ func marshalCustomFields(fields []model.CustomField) []map[string]interface{} {
 		}
 		m["value"] = cf.Value
 
-		// Infer $type from value type
 		switch cf.Value.(type) {
-		case model.BundleElement:
+		case ytBundleElement:
 			m["$type"] = "SingleEnumIssueCustomField"
-		case []model.BundleElement:
+		case []ytBundleElement:
 			m["$type"] = "MultiEnumIssueCustomField"
-		case model.User:
+		case ytUser:
 			m["$type"] = "SingleUserIssueCustomField"
-		case []model.User:
+		case []ytUser:
 			m["$type"] = "MultiUserIssueCustomField"
-		case model.OwnedField:
+		case ytOwnedField:
 			m["$type"] = "SingleOwnedIssueCustomField"
-		case model.Version:
+		case ytVersion:
 			m["$type"] = "SingleVersionIssueCustomField"
-		case []model.Version:
+		case []ytVersion:
 			m["$type"] = "MultiVersionIssueCustomField"
-		case model.Duration:
+		case ytDuration:
 			m["$type"] = "PeriodIssueCustomField"
 		case string:
 			m["$type"] = "TextIssueCustomField"
 		case int64:
 			m["$type"] = "DateIssueCustomField"
 		default:
-			// Try to use existing Type if set
 			if cf.Type != "" {
 				m["$type"] = cf.Type
 			}

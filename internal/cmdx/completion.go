@@ -12,27 +12,27 @@ var completionCmd = &cobra.Command{
 	Long: `To load completions:
 
 Bash:
-  $ source <(ytcli completion bash)
+  $ source <(tkt completion bash)
   # To load completions for each session, execute once:
   # Linux:
-  $ ytcli completion bash > /etc/bash_completion.d/ytcli
+  $ tkt completion bash > /etc/bash_completion.d/tkt
   # macOS:
-  $ ytcli completion bash > $(brew --prefix)/etc/bash_completion.d/ytcli
+  $ tkt completion bash > $(brew --prefix)/etc/bash_completion.d/tkt
 
 Zsh:
-  $ source <(ytcli completion zsh)
+  $ source <(tkt completion zsh)
   # To load completions for each session, execute once:
-  $ ytcli completion zsh > "${fpath[1]}/_ytcli"
+  $ tkt completion zsh > "${fpath[1]}/_tkt"
 
 Fish:
-  $ ytcli completion fish | source
+  $ tkt completion fish | source
   # To load completions for each session, execute once:
-  $ ytcli completion fish > ~/.config/fish/completions/ytcli.fish
+  $ tkt completion fish > ~/.config/fish/completions/tkt.fish
 
 PowerShell:
-  PS> ytcli completion powershell | Out-String | Invoke-Expression
+  PS> tkt completion powershell | Out-String | Invoke-Expression
   # To load completions for every new session, run:
-  PS> ytcli completion powershell > ytcli.ps1
+  PS> tkt completion powershell > tkt.ps1
   # and source this file from your PowerShell profile.
 `,
 	DisableFlagsInUseLine: true,

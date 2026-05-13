@@ -24,17 +24,17 @@ jobs:
         run: |
           VERSION="dev-$(date +%Y%m%d%H%M)-$(echo $GITHUB_SHA | cut -c1-7)"
           COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
-          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli ./cmd/ytcli
+          go build -ldflags "-X github.com/Olyxz16/tkt/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/tkt/internal/cmdx.Commit=$COMMIT" -o tkt ./cmd/tkt
 
       - name: Package artifact
         run: |
           VERSION="dev-$(date +%Y%m%d%H%M)-$(echo $GITHUB_SHA | cut -c1-7)"
-          tar czf ytcli-${VERSION}-linux-amd64.tar.gz ytcli
+          tar czf tkt-${VERSION}-linux-amd64.tar.gz tkt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ytcli-dev
-          path: ytcli-dev-*.tar.gz
+          name: tkt-dev
+          path: tkt-dev-*.tar.gz
 
       - name: Update dev release
         env:
@@ -42,13 +42,13 @@ jobs:
         run: |
           VERSION="dev-$(date +%Y%m%d%H%M)-$(echo $GITHUB_SHA | cut -c1-7)"
           COMMIT="$(echo $GITHUB_SHA | cut -c1-7)"
-          go build -ldflags "-X github.com/Olyxz16/ytcli/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/ytcli/internal/cmdx.Commit=$COMMIT" -o ytcli ./cmd/ytcli
-          tar czf ytcli-${VERSION}-linux-amd64.tar.gz ytcli
+          go build -ldflags "-X github.com/Olyxz16/tkt/internal/cmdx.Version=$VERSION -X github.com/Olyxz16/tkt/internal/cmdx.Commit=$COMMIT" -o tkt ./cmd/tkt
+          tar czf tkt-${VERSION}-linux-amd64.tar.gz tkt
 
           # Delete existing dev release if it exists
           gh release delete dev --yes 2>/dev/null || true
 
-          gh release create dev ytcli-${VERSION}-linux-amd64.tar.gz \
+          gh release create dev tkt-${VERSION}-linux-amd64.tar.gz \
             --title "Dev Build ($VERSION)" \
             --notes "Development build from \`dev\` branch.
 

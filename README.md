@@ -1,77 +1,77 @@
-# ytcli
+# tkt - Tiket
 
 A fast, **offline-first** command-line issue tracker that optionally syncs to JetBrains YouTrack.
 
-Think of it as a local TODO list with superpowers: instant creation, full-text search, and state management — no server needed. When you want to collaborate, `ytcli sync` pushes your tickets to YouTrack and pulls updates back.
+Think of it as a local TODO list with superpowers: instant creation, full-text search, and state management — no server needed. When you want to collaborate, `tkt sync` pushes your tickets to YouTrack and pulls updates back.
 
 ## Installation
 
 ```bash
-go install github.com/Olyxz16/ytcli/cmd/ytcli@latest
+go install github.com/Olyxz16/tkt/cmd/tkt@latest
 ```
 
 Or clone and build:
 
 ```bash
-git clone https://github.com/Olyxz16/ytcli.git
-cd ytcli
+git clone https://github.com/Olyxz16/tkt.git
+cd tkt
 make build
 ```
 
 ## Usage
 
-ytcli has two operating modes. You can use either or both at the same time.
+tkt has two operating modes. You can use either or both at the same time.
 
 ---
 
 ### Mode 1: Fully Offline (Standalone)
 
-No YouTrack account, no internet, no problem. ytcli works as a local issue tracker backed by SQLite.
+No YouTrack account, no internet, no problem. tkt works as a local issue tracker backed by SQLite.
 
 ```bash
 # Initialize a project in the current directory
-ytcli init
+tkt init
 
 # Create issues instantly — no network, no latency
-ytcli add "Fix login bug" -d "OAuth token exchange fails" -P Critical --tag bug
-ytcli add "Add dark mode" --tag ui
-ytcli add "Refactor API" --state "In Progress"
+tkt add "Fix login bug" -d "OAuth token exchange fails" -P Critical --tag bug
+tkt add "Add dark mode" --tag ui
+tkt add "Refactor API" --state "In Progress"
 
 # List all issues
-ytcli list
-ytcli ls                          # same thing, shorter
+tkt list
+tkt ls                          # same thing, shorter
 
 # Search with full-text search (FTS5)
-ytcli list "OAuth"
-ytcli list --state "In Progress"  # filter by state
+tkt list "OAuth"
+tkt list --state "In Progress"  # filter by state
 
 # Show issue detail
-ytcli show '#1'
+tkt show '#1'
 
 # Edit fields
-ytcli edit '#1' -s "Fix OAuth login bug" -d "Updated description"
+tkt edit '#1' -s "Fix OAuth login bug" -d "Updated description"
 
 # Change state
-ytcli state '#1' "In Progress"
-ytcli done '#3'                   # shortcut to Done
+tkt state '#1' "In Progress"
+tkt done '#3'                   # shortcut to Done
 
 # Add comments
-ytcli comment '#1' "Found the root cause"
-ytcli comments '#1'               # list all comments
+tkt comment '#1' "Found the root cause"
+tkt comments '#1'               # list all comments
 
 # Tags
-ytcli tag-add '#1' urgent
-ytcli tag-remove '#1' urgent
-ytcli tags                        # list all tags
+tkt tag-add '#1' urgent
+tkt tag-remove '#1' urgent
+tkt tags                        # list all tags
 
 # Open in $EDITOR
-ytcli open '#1'
+tkt open '#1'
 
 # Delete
-ytcli delete '#1'
+tkt delete '#1'
 ```
 
-**What's happening:** Every command above writes to `.ytcli/store.db`, a local SQLite database. Nothing leaves your machine.
+**What's happening:** Every command above writes to `.tkt/store.db`, a local SQLite database. Nothing leaves your machine.
 
 ---
 
@@ -81,35 +81,35 @@ Connect your local project to a YouTrack instance. Work offline, sync when ready
 
 ```bash
 # Step 1: Configure your YouTrack instance
-ytcli config setup
+tkt config setup
 # (interactive prompt: name, URL, token)
 
 # Step 2: Set the project for this directory
-ytcli config set project PROJ
+tkt config set project PROJ
 
 # Step 3: Pull existing YouTrack issues into your local store
-ytcli sync --pull
+tkt sync --pull
 
 # Step 4: Work locally as usual — everything is instant and offline
-ytcli add "New ticket from CLI"
-ytcli edit '#1' -s "Updated summary"
-ytcli comment '#1' "Left a comment"
+tkt add "New ticket from CLI"
+tkt edit '#1' -s "Updated summary"
+tkt comment '#1' "Left a comment"
 
 # Step 5: Sync when you're ready
-ytcli sync                        # pull remote changes + push local changes
-ytcli sync --push                 # push only (skip pulling)
-ytcli sync --pull                 # pull only (skip pushing)
-ytcli sync --dry-run              # preview what would happen
+tkt sync                        # pull remote changes + push local changes
+tkt sync --push                 # push only (skip pulling)
+tkt sync --pull                 # pull only (skip pushing)
+tkt sync --dry-run              # preview what would happen
 
 # Check sync status anytime
-ytcli sync --status
+tkt sync --status
 ```
 
 **ID mapping:** After sync, local `#1` also resolves as `PROJ-42`. Both refer to the same issue.
 
 ```bash
-ytcli show '#1'        # works
-ytcli show PROJ-42     # same issue, also works
+tkt show '#1'        # works
+tkt show PROJ-42     # same issue, also works
 ```
 
 ---
@@ -120,21 +120,21 @@ For quick one-off operations against YouTrack without touching the local databas
 
 ```bash
 # List/search remote issues (always hits the API)
-ytcli issues "#Unresolved for: me"
-ytcli issues "project: PROJ #Unresolved" --limit 20
+tkt issues "#Unresolved for: me"
+tkt issues "project: PROJ #Unresolved" --limit 20
 
 # Create directly on YouTrack
-ytcli create PROJ -s "Bug found" -d "Details here" -P Critical
+tkt create PROJ -s "Bug found" -d "Details here" -P Critical
 
 # Apply YouTrack commands (the fast way)
-ytcli cmd PROJ-42 "State: In Progress for: me"
-ytcli cmd PROJ-42 "Priority: Critical" --silent
+tkt cmd PROJ-42 "State: In Progress for: me"
+tkt cmd PROJ-42 "Priority: Critical" --silent
 
 # Add comment directly
-ytcli comment PROJ-42 "Working on this"
+tkt comment PROJ-42 "Working on this"
 
 # Open in browser
-ytcli open PROJ-42
+tkt open PROJ-42
 ```
 
 These commands bypass the local store and hit the YouTrack REST API directly.
@@ -143,7 +143,7 @@ These commands bypass the local store and hit the YouTrack REST API directly.
 
 ## Configuration
 
-### Global config (`~/.config/ytcli/config.yml`)
+### Global config (`~/.config/tkt/config.yml`)
 
 ```yaml
 instances:
@@ -155,11 +155,11 @@ default_instance: work
 output_format: table
 ```
 
-Tokens are stored in your OS keyring. Fallback to `~/.config/ytcli/credentials.yml` with 0600 permissions.
+Tokens are stored in your OS keyring. Fallback to `~/.config/tkt/credentials.yml` with 0600 permissions.
 
 ### Local config (per directory)
 
-**`.ytcli.yml`** (safe to commit):
+**`.tkt.yml`** (safe to commit):
 
 ```yaml
 instance: work
@@ -178,13 +178,13 @@ local:
     - Minor
 ```
 
-**`.ytcli.local.yml`** (gitignored):
+**`.tkt.local.yml`** (gitignored):
 
 ```yaml
 current_task: PROJ-42
 ```
 
-Created automatically by `ytcli init`.
+Created automatically by `tkt init`.
 
 ---
 
@@ -194,57 +194,57 @@ Created automatically by `ytcli init`.
 
 | Command | Description |
 |---|---|
-| `ytcli init` | Initialize local project with SQLite store |
-| `ytcli add "Summary"` | Create a local issue |
-| `ytcli list [query]` | List/search local issues (FTS5) |
-| `ytcli ls` | Alias for `list` |
-| `ytcli show <id>` | Show issue detail |
-| `ytcli edit <id>` | Edit an issue |
-| `ytcli state <id> <state>` | Change state |
-| `ytcli done <id>` | Mark as done |
-| `ytcli comment <id> <text>` | Add comment |
-| `ytcli comments <id>` | List comments |
-| `ytcli open <id>` | Open in editor or browser |
-| `ytcli tag-add <id> <tag>` | Add tag |
-| `ytcli tag-remove <id> <tag>` | Remove tag |
-| `ytcli tags` | List tags |
-| `ytcli delete <id>` | Delete issue |
+| `tkt init` | Initialize local project with SQLite store |
+| `tkt add "Summary"` | Create a local issue |
+| `tkt list [query]` | List/search local issues (FTS5) |
+| `tkt ls` | Alias for `list` |
+| `tkt show <id>` | Show issue detail |
+| `tkt edit <id>` | Edit an issue |
+| `tkt state <id> <state>` | Change state |
+| `tkt done <id>` | Mark as done |
+| `tkt comment <id> <text>` | Add comment |
+| `tkt comments <id>` | List comments |
+| `tkt open <id>` | Open in editor or browser |
+| `tkt tag-add <id> <tag>` | Add tag |
+| `tkt tag-remove <id> <tag>` | Remove tag |
+| `tkt tags` | List tags |
+| `tkt delete <id>` | Delete issue |
 
 ### Sync
 
 | Command | Description |
 |---|---|
-| `ytcli sync` | Bidirectional sync (pull then push) |
-| `ytcli sync --status` | Show sync status |
-| `ytcli sync --pull` | Pull remote changes only |
-| `ytcli sync --push` | Push local changes only |
-| `ytcli sync --dry-run` | Preview without applying |
+| `tkt sync` | Bidirectional sync (pull then push) |
+| `tkt sync --status` | Show sync status |
+| `tkt sync --pull` | Pull remote changes only |
+| `tkt sync --push` | Push local changes only |
+| `tkt sync --dry-run` | Preview without applying |
 
 ### Remote (direct API)
 
 | Command | Description | Alias |
 |---|---|---|
-| `ytcli issues [query]` | List/search YouTrack issues | `i`, `search` |
-| `ytcli create <project>` | Create directly on YouTrack | `n` |
-| `ytcli cmd <id> <command>` | Apply YouTrack command | `c` |
-| `ytcli projects` | List projects | |
-| `ytcli project <id>` | Show project details | |
-| `ytcli log <id> <duration>` | Log work time | |
-| `ytcli link <id> <target>` | Link issues | |
+| `tkt issues [query]` | List/search YouTrack issues | `i`, `search` |
+| `tkt create <project>` | Create directly on YouTrack | `n` |
+| `tkt cmd <id> <command>` | Apply YouTrack command | `c` |
+| `tkt projects` | List projects | |
+| `tkt project <id>` | Show project details | |
+| `tkt log <id> <duration>` | Log work time | |
+| `tkt link <id> <target>` | Link issues | |
 
 ### Config & Auth
 
 | Command | Description |
 |---|---|
-| `ytcli auth login [instance]` | Authenticate |
-| `ytcli auth whoami` | Show current user |
-| `ytcli config setup` | Interactive setup |
-| `ytcli config init` | Init local configs |
-| `ytcli config set <key> <value>` | Set config value |
-| `ytcli config get <key>` | Get config value |
-| `ytcli config instances` | List instances |
-| `ytcli completion <shell>` | Shell completions |
-| `ytcli version` | Version info |
+| `tkt auth login [instance]` | Authenticate |
+| `tkt auth whoami` | Show current user |
+| `tkt config setup` | Interactive setup |
+| `tkt config init` | Init local configs |
+| `tkt config set <key> <value>` | Set config value |
+| `tkt config get <key>` | Get config value |
+| `tkt config instances` | List instances |
+| `tkt completion <shell>` | Shell completions |
+| `tkt version` | Version info |
 
 ---
 
@@ -262,13 +262,13 @@ Created automatically by `ytcli init`.
 
 ```bash
 # Get structured data from remote
-ytcli issues "#Unresolved for: me" --output json --quiet
+tkt issues "#Unresolved for: me" --output json --quiet
 
 # Create locally and get back the ID
-ytcli add "New bug" -o json --quiet
+tkt add "New bug" -o json --quiet
 
 # Apply a command silently
-ytcli cmd PROJ-42 "Fixed" -q
+tkt cmd PROJ-42 "Fixed" -q
 ```
 
 Exit codes:
@@ -284,7 +284,7 @@ Exit codes:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    ytcli binary                          │
+│                    tkt binary                          │
 │  ┌────────────┐  ┌────────────┐  ┌────────────────┐    │
 │  │  CLI/TUI    │  │  Service   │  │  Sync Manager  │    │
 │  │  (cobra)    │  │  Layer     │  │                │    │

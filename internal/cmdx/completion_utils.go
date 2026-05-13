@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 func init() {
@@ -34,8 +34,8 @@ func issueIDCompletion(cmd *cobra.Command, args []string, toComplete string) ([]
 			issues, err := store.ListIssues(db, "", 100)
 			if err == nil {
 				for _, issue := range issues {
-					if issue.RemoteID != nil {
-						completions = append(completions, *issue.RemoteID)
+					if issue.ProviderRef != "" {
+						completions = append(completions, issue.ProviderRef)
 					}
 					completions = append(completions, local.FormatID(&issue))
 				}

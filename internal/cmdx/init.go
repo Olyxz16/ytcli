@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
-	"github.com/Olyxz16/ytcli/internal/config"
-	"github.com/Olyxz16/ytcli/internal/local"
-	"github.com/Olyxz16/ytcli/internal/store"
+	"github.com/Olyxz16/tkt/internal/config"
+	"github.com/Olyxz16/tkt/internal/local"
+	"github.com/Olyxz16/tkt/internal/store"
 )
 
 var initCmd = &cobra.Command{
@@ -23,7 +22,7 @@ var initCmd = &cobra.Command{
 			handleError(err)
 		}
 
-		dbDir := filepath.Join(wd, ".ytcli")
+		dbDir := filepath.Join(wd, ".tkt")
 		if err := os.MkdirAll(dbDir, 0755); err != nil {
 			handleError(err)
 		}
@@ -47,41 +46,27 @@ var initCmd = &cobra.Command{
 			localCfg.Local = local.DefaultSchema
 		}
 
-		global, _ := config.LoadGlobal()
-		if global.Instances == nil {
-			global.Instances = make(map[string]config.InstanceConfig)
-		}
-
-		if localCfg.Instance == "" && len(global.Instances) > 0 {
-			instanceNames := sortedKeys(global.Instances)
-
-			var selectedInstance string
-			options := make([]huh.Option[string], len(instanceNames))
-			for i, name := range instanceNames {
-				options[i] = huh.NewOption(fmt.Sprintf("%s (%s)", name, global.Instances[name].URL), name)
-			}
-
-			var skipInstance bool
+		// Provider configuration
+		if localCfg.Provider.URL == "" {
+			var providerName, providerURL string
 			fields := []huh.Field{
-				huh.NewSelect[string]().
-					Title("Select YouTrack instance for this project").
-					Options(options...).
-					Value(&selectedInstance).
-					WithHeight(min(len(options)+1, 10)),
-			}
-
-			if len(instanceNames) > 0 {
-				fields = append(fields, huh.NewConfirm().
-					Title("Skip instance binding? (for local-only project)").
-					Affirmative("No").
-					Negative("Yes").
-					Value(&skipInstance))
+				huh.NewInput().
+					Title("Provider name (e.g., youtrack, github)").
+					Placeholder("youtrack").
+					Value(&providerName),
+				huh.NewInput().
+					Title("Provider URL").
+					Placeholder("https://company.youtrack.cloud").
+					Value(&providerURL),
 			}
 
 			form := huh.NewForm(huh.NewGroup(fields...))
-			if err := form.Run(); err == nil && !skipInstance && selectedInstance != "" {
-				localCfg.Instance = selectedInstance
-				localCfg.InstanceURL = strings.TrimSuffix(global.Instances[selectedInstance].URL, "/")
+			if err := form.Run(); err == nil {
+				providerURL = strings.TrimSuffix(providerURL, "/")
+				localCfg.Provider = config.ProviderConfig{
+					Name: providerName,
+					URL:  providerURL,
+				}
 			}
 		}
 
@@ -110,36 +95,27 @@ var initCmd = &cobra.Command{
 		}
 
 		gitignorePath := filepath.Join(configDir, ".gitignore")
-		entry := ".ytcli.local.yml\n"
+		entry := ".tkt.local.yml\n"
 		data, err := os.ReadFile(gitignorePath)
 		if err != nil {
 			os.WriteFile(gitignorePath, []byte(entry), 0644)
-		} else if !contains(string(data), ".ytcli.local.yml") {
+		} else if !contains(string(data), ".tkt.local.yml") {
 			f, _ := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
 			f.WriteString(entry)
 			f.Close()
 		}
 
-		fmt.Println("Initialized local project in .ytcli/")
-		fmt.Println("  - SQLite database: .ytcli/store.db")
-		fmt.Println("  - Config: .ytcli.yml")
-		fmt.Println("  - Private config: .ytcli.local.yml")
-		if localCfg.Instance != "" {
-			fmt.Printf("  - Instance: %s\n", localCfg.Instance)
+		fmt.Println("Initialized local project in .tkt/")
+		fmt.Println("  - SQLite database: .tkt/store.db")
+		fmt.Println("  - Config: .tktrc.yml")
+		fmt.Println("  - Private config: .tkt.local.yml")
+		if localCfg.Provider.Name != "" {
+			fmt.Printf("  - Provider: %s (%s)\n", localCfg.Provider.Name, localCfg.Provider.URL)
 		}
 		if localCfg.Project != "" {
 			fmt.Printf("  - Project: %s\n", localCfg.Project)
 		}
 	},
-}
-
-func sortedKeys(m map[string]config.InstanceConfig) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
 }
 
 func contains(s, substr string) bool {
@@ -153,13 +129,6 @@ func containsAt(s, substr string) bool {
 		}
 	}
 	return false
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func init() {

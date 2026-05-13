@@ -1,7 +1,7 @@
-project: YTCLI
 provider:
     name: youtrack
     url: https://ytcli.youtrack.cloud
+project: YTCLI
 local:
     states:
         - Open

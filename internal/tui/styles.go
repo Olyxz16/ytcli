@@ -64,6 +64,9 @@ var (
 	paletteStyle     = lipgloss.NewStyle().Background(colorBgLight).BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorPrimary).Padding(1)
 	paletteMatchStyle = lipgloss.NewStyle().Foreground(colorPrimary).Bold(true)
 
+	paletteOverlayHeight = 7
+	paletteMaxItems      = 4
+
 	// Help
 	helpStyle = lipgloss.NewStyle().Foreground(colorMuted)
 )

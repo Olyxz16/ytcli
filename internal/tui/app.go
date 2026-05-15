@@ -109,8 +109,9 @@ type model struct {
 }
 
 type paletteItem struct {
-	Label string
-	Cmd   string
+	Label      string
+	Cmd        string
+	NeedsInput bool
 }
 
 type issuesMsg struct {
@@ -409,6 +410,17 @@ func (m model) handlePaletteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "enter":
 		text := strings.TrimSpace(m.paletteInput.Value())
+		if text == "" {
+			items := m.filteredPaletteItems()
+			if len(items) > 0 && m.paletteIndex < len(items) {
+				item := items[m.paletteIndex]
+				if item.NeedsInput {
+					m.paletteInput.SetValue(item.Cmd + " ")
+					m.paletteInput.CursorEnd()
+					return m, nil
+				}
+			}
+		}
 		m.paletteActive = false
 		m.paletteInput.Blur()
 		return m, m.runPaletteCommand(text)
@@ -733,20 +745,38 @@ func (m model) viewForm() string {
 
 func (m model) viewPalette() string {
 	items := m.filteredPaletteItems()
-	lines := []string{inputStyle.Render(m.paletteInput.View())}
+	maxItems := paletteMaxItems
+	if maxItems <= 0 {
+		maxItems = 5
+	}
+	start := 0
+	if len(items) > maxItems {
+		if m.paletteIndex > maxItems/2 {
+			start = m.paletteIndex - maxItems/2
+		}
+		if start+maxItems > len(items) {
+			start = len(items) - maxItems
+		}
+		if start < 0 {
+			start = 0
+		}
+		items = items[start : start+maxItems]
+	}
+	lines := make([]string, 0, len(items)+1)
 	for i, item := range items {
 		line := item.Label
-		if i == m.paletteIndex {
+		if i+start == m.paletteIndex {
 			line = paletteMatchStyle.Render(line)
 		}
 		lines = append(lines, line)
 	}
-	return paletteStyle.Render(strings.Join(lines, "\n"))
+	lines = append(lines, inputStyle.Render(m.paletteInput.View()))
+	return paletteStyle.Height(paletteOverlayHeight).Render(strings.Join(lines, "\n"))
 }
 
 func (m model) overlayHeight() int {
 	if m.formActive || m.paletteActive {
-		return 7
+		return paletteOverlayHeight
 	}
 	if m.filterActive {
 		return 1
@@ -1002,20 +1032,20 @@ func (m model) loadCommentsForSelection(prevID int64) tea.Cmd {
 
 func defaultPaletteItems(schema config.LocalSchema) []paletteItem {
 	items := []paletteItem{
-		{Label: "Refresh list", Cmd: "refresh"},
-		{Label: "Mark done", Cmd: "done"},
-		{Label: "Assign @me", Cmd: "assign me"},
-		{Label: "Add tag", Cmd: "tag "},
-		{Label: "Remove tag", Cmd: "untag "},
-		{Label: "Open in browser", Cmd: "open"},
-		{Label: "Update summary", Cmd: "summary "},
-		{Label: "Add comment", Cmd: "comment "},
+		{Label: "refresh", Cmd: "refresh"},
+		{Label: "done", Cmd: "done"},
+		{Label: "assign me", Cmd: "assign", NeedsInput: true},
+		{Label: "tag <name>", Cmd: "tag", NeedsInput: true},
+		{Label: "untag <name>", Cmd: "untag", NeedsInput: true},
+		{Label: "open", Cmd: "open"},
+		{Label: "summary <text>", Cmd: "summary", NeedsInput: true},
+		{Label: "comment <text>", Cmd: "comment", NeedsInput: true},
 	}
 	for _, state := range schema.States {
-		items = append(items, paletteItem{Label: "State: " + state, Cmd: "state " + state})
+		items = append(items, paletteItem{Label: "state " + state, Cmd: "state " + state})
 	}
 	for _, prio := range schema.Priorities {
-		items = append(items, paletteItem{Label: "Priority: " + prio, Cmd: "priority " + prio})
+		items = append(items, paletteItem{Label: "priority " + prio, Cmd: "priority " + prio})
 	}
 	return items
 }

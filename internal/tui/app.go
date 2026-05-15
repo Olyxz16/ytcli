@@ -232,13 +232,11 @@ func (m model) View() string {
 		content = m.viewList()
 	}
 	status := m.viewStatusBar()
-	if m.paletteActive {
-		return content + "\n" + m.viewPalette() + "\n" + status
+	if !m.formActive && !m.paletteActive {
+		return content + "\n" + status
 	}
-	if m.formActive {
-		return content + "\n" + m.viewForm() + "\n" + status
-	}
-	return content + "\n" + status
+	overlay := m.viewOverlay()
+	return m.applyOverlay(content, overlay) + "\n" + status
 }
 
 func (m model) refreshIssuesCmd() tea.Cmd {
@@ -410,20 +408,13 @@ func (m model) handlePaletteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "enter":
 		text := strings.TrimSpace(m.paletteInput.Value())
-		if text == "" {
-			items := m.filteredPaletteItems()
-			if len(items) > 0 && m.paletteIndex < len(items) {
-				item := items[m.paletteIndex]
-				if item.NeedsInput {
-					m.paletteInput.SetValue(item.Cmd + " ")
-					m.paletteInput.CursorEnd()
-					return m, nil
-				}
-			}
+		cmd, ok := m.selectedPaletteCommand(text)
+		if !ok {
+			return m, nil
 		}
 		m.paletteActive = false
 		m.paletteInput.Blur()
-		return m, m.runPaletteCommand(text)
+		return m, m.runCommand(cmd)
 	case "j", "down":
 		if m.paletteIndex < len(m.filteredPaletteItems())-1 {
 			m.paletteIndex++
@@ -516,7 +507,7 @@ func (m model) selectedIssueID() int64 {
 
 func (m model) viewList() string {
 	listW := listWidth(m.width)
-	panelHeight := m.height - 2 - m.overlayHeight()
+	panelHeight := m.height - 2
 	if panelHeight < 4 {
 		panelHeight = 4
 	}
@@ -630,7 +621,7 @@ func (m model) viewBoard() string {
 			line := fmt.Sprintf("%s %s", local.FormatID(&issue), issue.Summary)
 			content += "\n" + boardItemStyle.Render(line)
 		}
-		height := m.height - 2 - m.overlayHeight()
+		height := m.height - 2
 		if height < 4 {
 			height = 4
 		}
@@ -750,7 +741,7 @@ func (m model) viewPalette() string {
 		maxItems = 5
 	}
 	start := 0
-	if len(items) > maxItems {
+	if maxItems > 0 && len(items) > maxItems {
 		if m.paletteIndex > maxItems/2 {
 			start = m.paletteIndex - maxItems/2
 		}
@@ -771,29 +762,72 @@ func (m model) viewPalette() string {
 		lines = append(lines, line)
 	}
 	lines = append(lines, inputStyle.Render(m.paletteInput.View()))
-	return paletteStyle.Height(paletteOverlayHeight).Render(strings.Join(lines, "\n"))
+	return paletteStyle.Render(strings.Join(lines, "\n"))
 }
 
-func (m model) overlayHeight() int {
-	if m.formActive || m.paletteActive {
-		return paletteOverlayHeight
+func (m model) viewOverlay() string {
+	content := ""
+	if m.formActive {
+		content = m.viewForm()
+	} else if m.paletteActive {
+		content = m.viewPalette()
 	}
-	if m.filterActive {
-		return 1
-	}
-	return 0
+	return content
 }
 
-func (m model) runPaletteCommand(text string) tea.Cmd {
-	cmd := strings.TrimSpace(text)
-	if cmd == "" {
-		items := m.filteredPaletteItems()
-		if len(items) == 0 || m.paletteIndex >= len(items) {
-			return nil
+func (m model) applyOverlay(content, overlay string) string {
+	contentLines := strings.Split(content, "\n")
+	overlay = lipgloss.NewStyle().MaxWidth(m.width).Render(overlay)
+	overlayLines := strings.Split(overlay, "\n")
+	contentHeight := m.height - 1
+	if contentHeight < 1 {
+		contentHeight = len(contentLines)
+	}
+	for len(contentLines) < contentHeight {
+		contentLines = append(contentLines, strings.Repeat(" ", m.width))
+	}
+	if len(overlayLines) == 0 {
+		return strings.Join(contentLines, "\n")
+	}
+	start := contentHeight - len(overlayLines)
+	if start < 0 {
+		start = 0
+	}
+	for i, line := range overlayLines {
+		idx := start + i
+		if idx >= len(contentLines) {
+			break
 		}
-		cmd = items[m.paletteIndex].Cmd
+		contentLines[idx] = line
 	}
-	return m.runCommand(cmd)
+	return strings.Join(contentLines, "\n")
+}
+
+func (m model) selectedPaletteCommand(input string) (string, bool) {
+	text := strings.TrimSpace(input)
+	items := m.filteredPaletteItems()
+	if len(items) > 0 && m.paletteIndex < len(items) {
+		item := items[m.paletteIndex]
+		if item.NeedsInput {
+			args := ""
+			if strings.HasPrefix(text, item.Cmd) {
+				args = strings.TrimSpace(strings.TrimPrefix(text, item.Cmd))
+			} else {
+				args = strings.TrimSpace(text)
+			}
+			if args == "" {
+				m.paletteInput.SetValue(item.Cmd + " ")
+				m.paletteInput.CursorEnd()
+				return "", false
+			}
+			return item.Cmd + " " + args, true
+		}
+		return item.Cmd, true
+	}
+	if text == "" {
+		return "", false
+	}
+	return text, true
 }
 
 func (m model) filteredPaletteItems() []paletteItem {

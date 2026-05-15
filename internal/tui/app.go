@@ -401,6 +401,7 @@ func (m model) handleFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handlePaletteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.paletteInput, cmd = m.paletteInput.Update(msg)
+	m.clampPaletteIndex()
 	switch msg.String() {
 	case "esc":
 		m.paletteActive = false
@@ -427,6 +428,20 @@ func (m model) handlePaletteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, cmd
+}
+
+func (m *model) clampPaletteIndex() {
+	items := m.filteredPaletteItems()
+	if len(items) == 0 {
+		m.paletteIndex = 0
+		return
+	}
+	if m.paletteIndex >= len(items) {
+		m.paletteIndex = len(items) - 1
+	}
+	if m.paletteIndex < 0 {
+		m.paletteIndex = 0
+	}
 }
 
 func (m model) handleFormKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
